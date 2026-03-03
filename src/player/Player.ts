@@ -212,8 +212,7 @@ export class Player {
     await builder(recorder);
 
     // Set the master timeline on the scene
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (this._scene as any)._timeline = this._masterTimeline;
+    this._scene.setTimeline(this._masterTimeline);
 
     // Seek to start to show initial state
     this._masterTimeline.seek(0);

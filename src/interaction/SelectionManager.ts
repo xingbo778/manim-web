@@ -368,8 +368,7 @@ export class SelectionManager {
     // Select all mobjects whose centers lie within the box
     for (const mob of this._scene.mobjects) {
       const center = mob.getCenter();
-      if (center[0] >= minX && center[0] <= maxX &&
-          center[1] >= minY && center[1] <= maxY) {
+      if (center[0] >= minX && center[0] <= maxX && center[1] >= minY && center[1] <= maxY) {
         this.select(mob);
       }
     }
@@ -427,7 +426,7 @@ export class SelectionManager {
    */
   private _findOwnerMobject(
     obj: THREE.Object3D,
-    objToMobject: Map<THREE.Object3D, Mobject>
+    objToMobject: Map<THREE.Object3D, Mobject>,
   ): Mobject | null {
     const mob = objToMobject.get(obj);
     if (mob) return mob;
@@ -445,18 +444,14 @@ export class SelectionManager {
   /**
    * Fallback bounding-box pick for mobjects that don't register raycaster hits.
    */
-  private _boundingBoxPick(
-    clientX: number,
-    clientY: number,
-    rect: DOMRect
-  ): Mobject | null {
+  private _boundingBoxPick(clientX: number, clientY: number, rect: DOMRect): Mobject | null {
     const worldPos = this._screenToWorld(clientX, clientY, rect);
 
     // Check all mobjects, pick the topmost (last added = highest z in scene order)
     let best: Mobject | null = null;
     for (const mob of this._scene.mobjects) {
       const center = mob.getCenter();
-      const bounds = (mob as any)._getBoundingBox?.() ?? { width: 1, height: 1 };
+      const bounds = mob._getBoundingBox?.() ?? { width: 1, height: 1 };
 
       if (
         Math.abs(worldPos[0] - center[0]) <= bounds.width / 2 &&
@@ -494,11 +489,21 @@ export class SelectionManager {
     const hh = size.y / 2 + 0.08;
 
     const vertices = new Float32Array([
-      -hw, -hh, 0,
-       hw, -hh, 0,
-       hw,  hh, 0,
-      -hw,  hh, 0,
-      -hw, -hh, 0,
+      -hw,
+      -hh,
+      0,
+      hw,
+      -hh,
+      0,
+      hw,
+      hh,
+      0,
+      -hw,
+      hh,
+      0,
+      -hw,
+      -hh,
+      0,
     ]);
 
     const geometry = new THREE.BufferGeometry();
@@ -513,10 +518,8 @@ export class SelectionManager {
     });
 
     const outline = new THREE.LineSegments(
-      new THREE.EdgesGeometry(
-        new THREE.BoxGeometry(hw * 2, hh * 2, 0.001)
-      ),
-      material
+      new THREE.EdgesGeometry(new THREE.BoxGeometry(hw * 2, hh * 2, 0.001)),
+      material,
     );
 
     outline.position.copy(center);
@@ -557,11 +560,7 @@ export class SelectionManager {
   // Coordinate conversion helpers
   // ---------------------------------------------------------------------------
 
-  private _screenToWorld(
-    clientX: number,
-    clientY: number,
-    rect?: DOMRect
-  ): Vector3Tuple {
+  private _screenToWorld(clientX: number, clientY: number, rect?: DOMRect): Vector3Tuple {
     const canvas = this._scene.getCanvas();
     const r = rect ?? canvas.getBoundingClientRect();
 
@@ -569,8 +568,8 @@ export class SelectionManager {
     const ndcY = -((clientY - r.top) / r.height) * 2 + 1;
 
     const camera = this._scene.camera;
-    const worldX = ndcX * camera.frameWidth / 2;
-    const worldY = ndcY * camera.frameHeight / 2;
+    const worldX = (ndcX * camera.frameWidth) / 2;
+    const worldY = (ndcY * camera.frameHeight) / 2;
 
     return [worldX, worldY, 0];
   }

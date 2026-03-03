@@ -50,7 +50,7 @@ export class Hoverable {
     this._originalScale = [
       this._mobject.scaleVector.x,
       this._mobject.scaleVector.y,
-      this._mobject.scaleVector.z
+      this._mobject.scaleVector.z,
     ];
     this._originalColor = this._mobject.color;
     this._originalOpacity = this._mobject.opacity;
@@ -87,7 +87,7 @@ export class Hoverable {
     this._originalScale = [
       this._mobject.scaleVector.x,
       this._mobject.scaleVector.y,
-      this._mobject.scaleVector.z
+      this._mobject.scaleVector.z,
     ];
     this._originalColor = this._mobject.color;
     this._originalOpacity = this._mobject.opacity;
@@ -129,8 +129,8 @@ export class Hoverable {
 
     // Use camera's frame dimensions
     const camera = this._scene.camera;
-    const worldX = x * camera.frameWidth / 2;
-    const worldY = y * camera.frameHeight / 2;
+    const worldX = (x * camera.frameWidth) / 2;
+    const worldY = (y * camera.frameHeight) / 2;
 
     return [worldX, worldY, 0];
   }
@@ -138,10 +138,12 @@ export class Hoverable {
   private _hitTest(worldPos: Vector3Tuple): boolean {
     // Check if point is within mobject's bounding box
     const center = this._mobject.getCenter();
-    const bounds = (this._mobject as any)._getBoundingBox?.() ?? { width: 1, height: 1 };
+    const bounds = this._mobject._getBoundingBox?.() ?? { width: 1, height: 1 };
 
-    return Math.abs(worldPos[0] - center[0]) <= bounds.width / 2 &&
-           Math.abs(worldPos[1] - center[1]) <= bounds.height / 2;
+    return (
+      Math.abs(worldPos[0] - center[0]) <= bounds.width / 2 &&
+      Math.abs(worldPos[1] - center[1]) <= bounds.height / 2
+    );
   }
 
   private _startHover(): void {
@@ -173,7 +175,7 @@ export class Hoverable {
     this._mobject.scaleVector.set(
       this._originalScale[0],
       this._originalScale[1],
-      this._originalScale[2]
+      this._originalScale[2],
     );
     this._mobject.setColor(this._originalColor);
     this._mobject.setOpacity(this._originalOpacity);
@@ -221,6 +223,10 @@ export class Hoverable {
  * @param options - Hoverable configuration options
  * @returns A new Hoverable instance
  */
-export function makeHoverable(mobject: Mobject, scene: Scene, options?: HoverableOptions): Hoverable {
+export function makeHoverable(
+  mobject: Mobject,
+  scene: Scene,
+  options?: HoverableOptions,
+): Hoverable {
   return new Hoverable(mobject, scene, options);
 }

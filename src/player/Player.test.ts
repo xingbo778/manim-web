@@ -20,6 +20,7 @@ function createMockSceneMethods() {
     camera: {},
     batch: vi.fn((cb: () => void) => cb()),
     export: vi.fn(async () => new Blob()),
+    setTimeline: vi.fn(),
     _timeline: null as unknown,
   };
 }

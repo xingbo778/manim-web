@@ -39,6 +39,25 @@ export interface MobjectStyle {
 }
 
 /**
+ * Interface for duck-typing VMobject properties from Mobject base class.
+ * Avoids circular import of VMobject while maintaining type safety.
+ */
+export interface VMobjectLike {
+  _points3D: number[][];
+  _visiblePointCount: number | null;
+  _geometryDirty: boolean;
+  setPoints(points: number[][] | { x: number; y: number }[]): void;
+  getPoints(): number[][];
+}
+
+/**
+ * Type guard to check if a Mobject has VMobject-like point data.
+ */
+export function isVMobjectLike(m: Mobject): m is Mobject & VMobjectLike {
+  return '_points3D' in m;
+}
+
+/**
  * Base mathematical object class.
  * All visible objects in manimweb inherit from this class.
  */
@@ -265,10 +284,8 @@ export abstract class Mobject {
     }
 
     // For VMobjects with point data, transform points directly (Manim Python behavior)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if ('_points3D' in this && (this as any)._points3D.length > 0) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const points: number[][] = (this as any)._points3D;
+    if (isVMobjectLike(this) && this._points3D.length > 0) {
+      const points: number[][] = this._points3D;
       const cos = Math.cos(angle);
       const sin = Math.sin(angle);
 
@@ -318,8 +335,7 @@ export abstract class Mobject {
         }
       }
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (this as any)._geometryDirty = true;
+      this._geometryDirty = true;
       this._markDirty();
 
       // Recursively rotate children
@@ -590,14 +606,10 @@ export abstract class Mobject {
     this._style = { ...other._style };
 
     // If both are VMobjects, copy points
-    if ('_points3D' in this && '_points3D' in other) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const self = this as any;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const src = other as any;
-      self._points3D = src._points3D.map((p: number[]) => [...p]);
-      self._visiblePointCount = src._visiblePointCount;
-      self._geometryDirty = true;
+    if (isVMobjectLike(this) && isVMobjectLike(other)) {
+      this._points3D = other._points3D.map((p: number[]) => [...p]);
+      this._visiblePointCount = other._visiblePointCount;
+      this._geometryDirty = true;
     }
 
     this._markDirty();
@@ -612,8 +624,8 @@ export abstract class Mobject {
    * @returns this for chaining
    */
   replace(target: Mobject, stretch: boolean = false): this {
-    const targetBounds = target._getBoundingBox();
-    const selfBounds = this._getBoundingBox();
+    const targetBounds = target.getBoundingBox();
+    const selfBounds = this.getBoundingBox();
 
     if (stretch) {
       const sx = selfBounds.width > 0.0001 ? targetBounds.width / selfBounds.width : 1;
@@ -754,7 +766,7 @@ export abstract class Mobject {
    */
   _getEdgeInDirection(direction: Vector3Tuple): Vector3Tuple {
     const center = this.getCenter();
-    const bounds = this._getBoundingBox();
+    const bounds = this.getBoundingBox();
 
     // Use sign only (matches Manim's get_critical_point behavior)
     return [
@@ -769,12 +781,19 @@ export abstract class Mobject {
    * Uses object pooling to avoid allocations in hot paths (performance optimization).
    * @returns Object with width, height, and depth
    */
-  protected _getBoundingBox(): { width: number; height: number; depth: number } {
+  getBoundingBox(): { width: number; height: number; depth: number } {
     const obj = this.getThreeObject();
     // Use pooled objects to avoid allocation
     Mobject._tempBox3.setFromObject(obj);
     Mobject._tempBox3.getSize(Mobject._tempVec3);
     return { width: Mobject._tempVec3.x, height: Mobject._tempVec3.y, depth: Mobject._tempVec3.z };
+  }
+
+  /**
+   * @deprecated Use getBoundingBox() instead.
+   */
+  _getBoundingBox(): { width: number; height: number; depth: number } {
+    return this.getBoundingBox();
   }
 
   /**
@@ -862,7 +881,7 @@ export abstract class Mobject {
   toEdge(direction: Vector3Tuple, buff: number = 0.5, frameDimensions?: [number, number]): this {
     const frameWidth = frameDimensions?.[0] ?? 14;
     const frameHeight = frameDimensions?.[1] ?? 8;
-    const bbox = this._getBoundingBox();
+    const bbox = this.getBoundingBox();
 
     const targetX =
       direction[0] !== 0
@@ -1214,19 +1233,15 @@ export abstract class Mobject {
     this.fillOpacity = saved.fillOpacity;
     this._style = { ...saved._style };
 
-    // Restore VMobject points if applicable (duck-typed to avoid import)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const self = this as any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const src = saved as any;
-    if (typeof self.setPoints === 'function' && typeof src.getPoints === 'function') {
-      const pts = src.getPoints();
+    // Restore VMobject points if applicable (type-safe duck-typing)
+    if (isVMobjectLike(this) && isVMobjectLike(saved)) {
+      const pts = saved.getPoints();
       if (pts && pts.length > 0) {
-        self.setPoints(pts);
+        this.setPoints(pts);
       }
-      if (src._visiblePointCount !== undefined) {
-        self._visiblePointCount = src._visiblePointCount;
-        self._geometryDirty = true;
+      if (saved._visiblePointCount !== undefined) {
+        this._visiblePointCount = saved._visiblePointCount;
+        this._geometryDirty = true;
       }
     }
 

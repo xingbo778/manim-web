@@ -192,6 +192,15 @@ export class Scene {
   }
 
   /**
+   * Set the scene's playback timeline.
+   * Used by Player to assign a MasterTimeline for integrated playback.
+   * @internal
+   */
+  setTimeline(timeline: Timeline | null): void {
+    this._timeline = timeline;
+  }
+
+  /**
    * Get whether animations are currently playing.
    */
   get isPlaying(): boolean {

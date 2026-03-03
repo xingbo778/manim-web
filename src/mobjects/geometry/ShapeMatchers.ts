@@ -39,7 +39,7 @@ export class BackgroundRectangle extends Rectangle {
     const { buff = 0.2, color = BLACK, fillOpacity = 0.75, strokeWidth = 0 } = options;
 
     // Calculate initial dimensions from mobject bounding box
-    const bounds = mobject['_getBoundingBox']();
+    const bounds = mobject.getBoundingBox();
     const center = mobject.getCenter();
 
     super({
@@ -81,7 +81,7 @@ export class BackgroundRectangle extends Rectangle {
     let prevCy = NaN;
     let prevCz = NaN;
     this.addUpdater(() => {
-      const bounds = this._targetMobject['_getBoundingBox']();
+      const bounds = this._targetMobject.getBoundingBox();
       const center = this._targetMobject.getCenter();
       const w = bounds.width + 2 * this._buff;
       const h = bounds.height + 2 * this._buff;
@@ -199,7 +199,7 @@ export class SurroundingRectangle extends VMobject {
     this._cornerRadius = cornerRadius;
 
     // Calculate initial dimensions
-    const bounds = mobject['_getBoundingBox']();
+    const bounds = mobject.getBoundingBox();
     this._rectWidth = bounds.width + 2 * buff;
     this._rectHeight = bounds.height + 2 * buff;
     this._centerPoint = mobject.getCenter();
@@ -368,7 +368,7 @@ export class SurroundingRectangle extends VMobject {
    */
   private _addTrackingUpdater(): void {
     this.addUpdater(() => {
-      const bounds = this._targetMobject['_getBoundingBox']();
+      const bounds = this._targetMobject.getBoundingBox();
       const center = this._targetMobject.getCenter();
 
       const newWidth = bounds.width + 2 * this._buff;
@@ -408,7 +408,7 @@ export class SurroundingRectangle extends VMobject {
    */
   setBuff(value: number): this {
     this._buff = value;
-    const bounds = this._targetMobject['_getBoundingBox']();
+    const bounds = this._targetMobject.getBoundingBox();
     this._rectWidth = bounds.width + 2 * value;
     this._rectHeight = bounds.height + 2 * value;
     this._generatePoints();
@@ -481,7 +481,7 @@ export class Underline extends Line {
     const { buff = 0.1, stretch = 0, color = YELLOW, strokeWidth = DEFAULT_STROKE_WIDTH } = options;
 
     // Calculate initial line position
-    const bounds = mobject['_getBoundingBox']();
+    const bounds = mobject.getBoundingBox();
     const center = mobject.getCenter();
     const bottom = center[1] - bounds.height / 2;
     const halfWidth = bounds.width / 2 + stretch;
@@ -510,7 +510,7 @@ export class Underline extends Line {
       prevEy = NaN,
       prevZ = NaN;
     this.addUpdater(() => {
-      const bounds = this._targetMobject['_getBoundingBox']();
+      const bounds = this._targetMobject.getBoundingBox();
       const center = this._targetMobject.getCenter();
       const bottom = center[1] - bounds.height / 2;
       const halfWidth = bounds.width / 2 + this._stretch;
@@ -623,7 +623,7 @@ export class Cross extends VMobject {
     this.strokeWidth = strokeWidth;
 
     // Calculate corners
-    const bounds = mobject['_getBoundingBox']();
+    const bounds = mobject.getBoundingBox();
     const center = mobject.getCenter();
     const halfWidth = (bounds.width / 2) * scale;
     const halfHeight = (bounds.height / 2) * scale;
@@ -657,7 +657,7 @@ export class Cross extends VMobject {
       prevCy = NaN,
       prevCz = NaN;
     this.addUpdater(() => {
-      const bounds = this._targetMobject['_getBoundingBox']();
+      const bounds = this._targetMobject.getBoundingBox();
       const center = this._targetMobject.getCenter();
       const halfWidth = (bounds.width / 2) * this._scale;
       const halfHeight = (bounds.height / 2) * this._scale;

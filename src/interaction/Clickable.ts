@@ -131,7 +131,7 @@ export class Clickable {
             clientX: touch.clientX,
             clientY: touch.clientY,
             bubbles: true,
-            cancelable: true
+            cancelable: true,
           });
           this._options.onDoubleClick(this._mobject, syntheticEvent);
           this._lastTapTime = 0; // Reset to prevent triple-tap
@@ -141,7 +141,7 @@ export class Clickable {
             clientX: touch.clientX,
             clientY: touch.clientY,
             bubbles: true,
-            cancelable: true
+            cancelable: true,
           });
           this._options.onClick(this._mobject, syntheticEvent);
           this._lastTapTime = now;
@@ -163,8 +163,8 @@ export class Clickable {
 
     // Use camera's frame dimensions
     const camera = this._scene.camera;
-    const worldX = x * camera.frameWidth / 2;
-    const worldY = y * camera.frameHeight / 2;
+    const worldX = (x * camera.frameWidth) / 2;
+    const worldY = (y * camera.frameHeight) / 2;
 
     return [worldX, worldY, 0];
   }
@@ -172,10 +172,12 @@ export class Clickable {
   private _hitTest(worldPos: Vector3Tuple): boolean {
     // Check if point is within mobject's bounding box
     const center = this._mobject.getCenter();
-    const bounds = (this._mobject as any)._getBoundingBox?.() ?? { width: 1, height: 1 };
+    const bounds = this._mobject._getBoundingBox?.() ?? { width: 1, height: 1 };
 
-    return Math.abs(worldPos[0] - center[0]) <= bounds.width / 2 &&
-           Math.abs(worldPos[1] - center[1]) <= bounds.height / 2;
+    return (
+      Math.abs(worldPos[0] - center[0]) <= bounds.width / 2 &&
+      Math.abs(worldPos[1] - center[1]) <= bounds.height / 2
+    );
   }
 
   /**
@@ -211,6 +213,10 @@ export class Clickable {
  * @param options - Clickable configuration options
  * @returns A new Clickable instance
  */
-export function makeClickable(mobject: Mobject, scene: Scene, options: ClickableOptions): Clickable {
+export function makeClickable(
+  mobject: Mobject,
+  scene: Scene,
+  options: ClickableOptions,
+): Clickable {
   return new Clickable(mobject, scene, options);
 }

@@ -1118,6 +1118,35 @@ describe('Edge cases', () => {
     clickable.dispose();
   });
 
+  it('Draggable with mobject that has no _getBoundingBox falls back to default', () => {
+    scene = createMockScene();
+    const mob = createMockMobject({ center: [0, 0, 0] });
+    // Remove _getBoundingBox to simulate a mobject without it
+    (mob as any)._getBoundingBox = undefined;
+    const draggable = new Draggable(mob as any, scene as any);
+
+    const canvas = scene.getCanvas();
+    // Default fallback is { width: 1, height: 1 }, so center (0,0) with 0.5 range
+    fireMouseEvent(canvas, 'mousedown', { clientX: 400, clientY: 300 });
+    expect(draggable.isDragging).toBe(true);
+    fireMouseEvent(window as any, 'mouseup', { clientX: 400, clientY: 300 });
+    draggable.dispose();
+  });
+
+  it('Hoverable with mobject that has no _getBoundingBox falls back to default', () => {
+    scene = createMockScene();
+    const mob = createMockMobject({ center: [0, 0, 0] });
+    // Remove _getBoundingBox to simulate a mobject without it
+    (mob as any)._getBoundingBox = undefined;
+    const hoverable = new Hoverable(mob as any, scene as any);
+
+    const canvas = scene.getCanvas();
+    // Default fallback is { width: 1, height: 1 }, so center (0,0) with 0.5 range
+    fireMouseEvent(canvas, 'mousemove', { clientX: 400, clientY: 300 });
+    expect(hoverable.isHovering).toBe(true);
+    hoverable.dispose();
+  });
+
   it('Draggable with no options works without errors', () => {
     scene = createMockScene();
     const mob = createMockMobject({ center: [0, 0, 0], bounds: { width: 2, height: 2 } });

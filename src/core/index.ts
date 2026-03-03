@@ -46,17 +46,19 @@ export {
 } from './StateManager';
 export { AudioManager, type AudioTrack, type AddSoundOptions } from './AudioManager';
 export { InteractiveScene, type InteractiveSceneOptions } from './InteractiveScene';
-export { Lighting, type AmbientLightOptions, type DirectionalLightOptions, type PointLightOptions, type SpotLightOptions } from './Lighting';
 export {
-  ThreeDScene,
-  MovingCameraScene,
-  ZoomedScene,
-  VectorScene,
+  Lighting,
+  type AmbientLightOptions,
+  type DirectionalLightOptions,
+  type PointLightOptions,
+  type SpotLightOptions,
+} from './Lighting';
+export { ThreeDScene, type ThreeDSceneOptions } from './ThreeDScene';
+export { MovingCameraScene, type MovingCameraSceneOptions } from './MovingCameraScene';
+export { ZoomedScene, ZoomDisplayPopOut, type ZoomedSceneOptions } from './ZoomedScene';
+export { VectorScene, type VectorSceneOptions } from './VectorScene';
+export {
   LinearTransformationScene,
-  type ThreeDSceneOptions,
-  type MovingCameraSceneOptions,
-  type ZoomedSceneOptions,
-  type VectorSceneOptions,
   type LinearTransformationSceneOptions,
   type Matrix2D,
-} from './SceneExtensions';
+} from './LinearTransformationScene';

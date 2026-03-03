@@ -23,7 +23,9 @@ export {
   ApplyMatrix,
   applyMatrix,
   type ApplyMatrixOptions,
+} from './ApplyTransforms';
 
+export {
   // FadeTransform
   FadeTransform,
   fadeTransform,
@@ -38,7 +40,9 @@ export {
   TransformFromCopy,
   transformFromCopy,
   type TransformFromCopyOptions,
+} from './FadeTransforms';
 
+export {
   // ClockwiseTransform
   ClockwiseTransform,
   clockwiseTransform,
@@ -58,7 +62,9 @@ export {
   CyclicReplace,
   cyclicReplace,
   type CyclicReplaceOptions,
+} from './MovementTransforms';
 
+export {
   // ScaleInPlace
   ScaleInPlace,
   scaleInPlace,
@@ -84,7 +90,7 @@ export {
   TransformAnimations,
   transformAnimations,
   type TransformAnimationsOptions,
-} from './TransformExtensions';
+} from './SpecialTransforms';
 
 export {
   // TransformMatchingShapes

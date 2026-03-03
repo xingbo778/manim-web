@@ -75,7 +75,7 @@ export class ParametricFunction extends VMobject {
     this._tRange = [...tRange];
     this._numSamples = numSamples;
     this._axes = axes ?? null;
-    this._useAxesCoords = useAxesCoords ?? (axes !== undefined);
+    this._useAxesCoords = useAxesCoords ?? axes !== undefined;
 
     this.color = color;
     this.fillOpacity = 0;
@@ -92,6 +92,7 @@ export class ParametricFunction extends VMobject {
     const dt = (tMax - tMin) / (this._numSamples - 1);
 
     const points: number[][] = [];
+    let errorCount = 0;
 
     for (let i = 0; i < this._numSamples; i++) {
       const t = tMin + i * dt;
@@ -115,10 +116,17 @@ export class ParametricFunction extends VMobject {
         }
 
         points.push([x, y, z]);
-      } catch {
-        // Skip points where function throws
+      } catch (err) {
+        errorCount++;
+        if (errorCount === 1) {
+          console.warn(`ParametricFunction: user function threw at t=${t}`, err);
+        }
         continue;
       }
+    }
+
+    if (errorCount > 0) {
+      console.warn(`ParametricFunction: function threw ${errorCount}/${this._numSamples} times`);
     }
 
     if (points.length < 2) {
@@ -145,7 +153,7 @@ export class ParametricFunction extends VMobject {
       return [
         [...p0],
         [p0[0] + dx / 3, p0[1] + dy / 3, p0[2] + dz / 3],
-        [p0[0] + 2 * dx / 3, p0[1] + 2 * dy / 3, p0[2] + 2 * dz / 3],
+        [p0[0] + (2 * dx) / 3, p0[1] + (2 * dy) / 3, p0[2] + (2 * dz) / 3],
         [...p1],
       ];
     }
@@ -161,27 +169,11 @@ export class ParametricFunction extends VMobject {
 
       // Calculate control points using Catmull-Rom spline formula
       const tension = 0.5;
-      const d1 = [
-        (p2[0] - p0[0]) * tension,
-        (p2[1] - p0[1]) * tension,
-        (p2[2] - p0[2]) * tension,
-      ];
-      const d2 = [
-        (p3[0] - p1[0]) * tension,
-        (p3[1] - p1[1]) * tension,
-        (p3[2] - p1[2]) * tension,
-      ];
+      const d1 = [(p2[0] - p0[0]) * tension, (p2[1] - p0[1]) * tension, (p2[2] - p0[2]) * tension];
+      const d2 = [(p3[0] - p1[0]) * tension, (p3[1] - p1[1]) * tension, (p3[2] - p1[2]) * tension];
 
-      const cp1 = [
-        p1[0] + d1[0] / 3,
-        p1[1] + d1[1] / 3,
-        p1[2] + d1[2] / 3,
-      ];
-      const cp2 = [
-        p2[0] - d2[0] / 3,
-        p2[1] - d2[1] / 3,
-        p2[2] - d2[2] / 3,
-      ];
+      const cp1 = [p1[0] + d1[0] / 3, p1[1] + d1[1] / 3, p1[2] + d1[2] / 3];
+      const cp2 = [p2[0] - d2[0] / 3, p2[1] - d2[1] / 3, p2[2] - d2[2] / 3];
 
       if (i === 0) {
         bezierPoints.push([...p1]);
@@ -199,7 +191,7 @@ export class ParametricFunction extends VMobject {
    * @param t - The parameter value
    * @returns The 3D point on the curve
    */
-  getPointFromT(t: number): Vector3Tuple {
+  getPointFromT(t: number): Vector3Tuple | null {
     try {
       const result = this._func(t);
       const x = result[0];
@@ -211,8 +203,9 @@ export class ParametricFunction extends VMobject {
       }
 
       return [x, y, z];
-    } catch {
-      return [0, 0, 0];
+    } catch (err) {
+      console.warn(`ParametricFunction.getPointFromT: function threw at t=${t}`, err);
+      return null;
     }
   }
 

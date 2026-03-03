@@ -129,6 +129,7 @@ export abstract class Mobject {
   private static _tempVec3: THREE.Vector3 = new THREE.Vector3();
   private static _tempBox3: THREE.Box3 = new THREE.Box3();
   private static _tempQuaternion: THREE.Quaternion = new THREE.Quaternion();
+  private static _tempQuaternion2: THREE.Quaternion = new THREE.Quaternion();
 
   constructor() {
     this.id = `mobject_${Mobject._idCounter++}`;
@@ -309,14 +310,11 @@ export abstract class Mobject {
         Mobject._tempQuaternion.setFromAxisAngle(Mobject._tempVec3, angle);
 
         for (const point of points) {
-          const dx = point[0] - cx;
-          const dy = point[1] - cy;
-          const dz = point[2] - cz;
-          const v = new THREE.Vector3(dx, dy, dz);
-          v.applyQuaternion(Mobject._tempQuaternion);
-          point[0] = cx + v.x;
-          point[1] = cy + v.y;
-          point[2] = cz + v.z;
+          Mobject._tempVec3.set(point[0] - cx, point[1] - cy, point[2] - cz);
+          Mobject._tempVec3.applyQuaternion(Mobject._tempQuaternion);
+          point[0] = cx + Mobject._tempVec3.x;
+          point[1] = cy + Mobject._tempVec3.y;
+          point[2] = cz + Mobject._tempVec3.z;
         }
       }
 
@@ -338,24 +336,24 @@ export abstract class Mobject {
         Mobject._tempVec3.set(axis[0], axis[1], axis[2]).normalize();
         Mobject._tempQuaternion.setFromAxisAngle(Mobject._tempVec3, angle);
 
-        const offsetVec = new THREE.Vector3(dx, dy, dz);
-        offsetVec.applyQuaternion(Mobject._tempQuaternion);
+        Mobject._tempVec3.set(dx, dy, dz);
+        Mobject._tempVec3.applyQuaternion(Mobject._tempQuaternion);
 
         this.position.set(
-          aboutPoint[0] + offsetVec.x,
-          aboutPoint[1] + offsetVec.y,
-          aboutPoint[2] + offsetVec.z,
+          aboutPoint[0] + Mobject._tempVec3.x,
+          aboutPoint[1] + Mobject._tempVec3.y,
+          aboutPoint[2] + Mobject._tempVec3.z,
         );
 
-        const currentQuat = new THREE.Quaternion().setFromEuler(this.rotation);
-        currentQuat.multiply(Mobject._tempQuaternion);
-        this.rotation.setFromQuaternion(currentQuat);
+        Mobject._tempQuaternion2.setFromEuler(this.rotation);
+        Mobject._tempQuaternion2.multiply(Mobject._tempQuaternion);
+        this.rotation.setFromQuaternion(Mobject._tempQuaternion2);
       } else {
         Mobject._tempVec3.set(axis[0], axis[1], axis[2]).normalize();
         Mobject._tempQuaternion.setFromAxisAngle(Mobject._tempVec3, angle);
-        const currentQuat = new THREE.Quaternion().setFromEuler(this.rotation);
-        currentQuat.multiply(Mobject._tempQuaternion);
-        this.rotation.setFromQuaternion(currentQuat);
+        Mobject._tempQuaternion2.setFromEuler(this.rotation);
+        Mobject._tempQuaternion2.multiply(Mobject._tempQuaternion);
+        this.rotation.setFromQuaternion(Mobject._tempQuaternion2);
       }
       this._markDirty();
     }
@@ -861,10 +859,9 @@ export abstract class Mobject {
    * @param buff Buffer from edge
    * @returns this for chaining
    */
-  toEdge(direction: Vector3Tuple, buff: number = 0.5): this {
-    // Assuming standard Manim frame: 14 wide, 8 tall
-    const frameWidth = 14;
-    const frameHeight = 8;
+  toEdge(direction: Vector3Tuple, buff: number = 0.5, frameDimensions?: [number, number]): this {
+    const frameWidth = frameDimensions?.[0] ?? 14;
+    const frameHeight = frameDimensions?.[1] ?? 8;
     const bbox = this._getBoundingBox();
 
     const targetX =
@@ -885,8 +882,12 @@ export abstract class Mobject {
    * @param buff Buffer from edges
    * @returns this for chaining
    */
-  toCorner(direction: Vector3Tuple = UR, buff: number = 0.5): this {
-    return this.toEdge(direction, buff);
+  toCorner(
+    direction: Vector3Tuple = UR,
+    buff: number = 0.5,
+    frameDimensions?: [number, number],
+  ): this {
+    return this.toEdge(direction, buff, frameDimensions);
   }
 
   /**

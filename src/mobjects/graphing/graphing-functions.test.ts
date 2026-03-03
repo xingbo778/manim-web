@@ -222,7 +222,7 @@ describe('ParametricFunction', () => {
       expect(closeTo(pt[2], 1.5)).toBe(true);
     });
 
-    it('should return [0,0,0] when function throws', () => {
+    it('should return null when function throws', () => {
       const pf = new ParametricFunction({
         func: () => {
           throw new Error('oops');
@@ -230,7 +230,7 @@ describe('ParametricFunction', () => {
         tRange: [0, 1],
       });
       const pt = pf.getPointFromT(0.5);
-      expect(pt).toEqual([0, 0, 0]);
+      expect(pt).toBeNull();
     });
 
     it('getPointFromT at t=PI/2 for unit circle', () => {

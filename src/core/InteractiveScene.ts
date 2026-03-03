@@ -17,13 +17,20 @@ import { Mobject, Vector3Tuple } from './Mobject';
 import { VMobject } from './VMobject';
 import { VGroup } from './VGroup';
 import { serializeMobject, deserializeMobject, MobjectState } from './StateManager';
+import { SelectionManager, SelectionManagerOptions } from '../interaction/SelectionManager';
 import {
-  SelectionManager,
-  SelectionManagerOptions,
-} from '../interaction/SelectionManager';
-import {
-  RED, BLUE, GREEN, YELLOW, ORANGE, PURPLE, TEAL, PINK,
-  WHITE, GRAY, MAROON, GOLD,
+  RED,
+  BLUE,
+  GREEN,
+  YELLOW,
+  ORANGE,
+  PURPLE,
+  TEAL,
+  PINK,
+  WHITE,
+  GRAY,
+  MAROON,
+  GOLD,
 } from '../constants/colors';
 
 // ---------------------------------------------------------------------------
@@ -308,7 +315,9 @@ export class InteractiveScene extends Scene {
     // --- Color palette toggle ---
     if (
       e.key.toLowerCase() === this._interactiveOptions.colorPaletteToggleKey &&
-      !isCtrlOrMeta && !e.shiftKey && !e.altKey
+      !isCtrlOrMeta &&
+      !e.shiftKey &&
+      !e.altKey
     ) {
       // Only toggle if no input element is focused
       const active = document.activeElement;
@@ -390,7 +399,7 @@ export class InteractiveScene extends Scene {
     const worldPos = this._screenToWorldIScene(e.clientX, e.clientY);
     for (const mob of this.selection.selected) {
       const center = mob.getCenter();
-      const bounds = (mob as any)._getBoundingBox?.() ?? { width: 1, height: 1 };
+      const bounds = mob._getBoundingBox?.() ?? { width: 1, height: 1 };
 
       if (
         Math.abs(worldPos[0] - center[0]) <= bounds.width / 2 &&
@@ -524,8 +533,8 @@ export class InteractiveScene extends Scene {
     const ndcY = -((clientY - rect.top) / rect.height) * 2 + 1;
 
     const cam = this.camera;
-    const worldX = ndcX * cam.frameWidth / 2;
-    const worldY = ndcY * cam.frameHeight / 2;
+    const worldX = (ndcX * cam.frameWidth) / 2;
+    const worldY = (ndcY * cam.frameHeight) / 2;
 
     return [worldX, worldY, 0];
   }

@@ -10,6 +10,7 @@
  * which expects `mobject.savedState` to be a VMobject copy.
  */
 
+import * as THREE from 'three';
 import { Mobject, MobjectStyle } from './Mobject';
 import { VMobject, Point } from './VMobject';
 
@@ -108,9 +109,9 @@ export function serializeMobject(mob: Mobject): MobjectState {
 
   // VMobject-specific properties
   if (mob instanceof VMobject) {
-    state.points2D = mob.points.map(p => ({ x: p.x, y: p.y }));
-    state.points3D = mob.getPoints().map(p => [...p]);
-    state.visiblePointCount = (mob as any)._visiblePointCount ?? null;
+    state.points2D = mob.points.map((p) => ({ x: p.x, y: p.y }));
+    state.points3D = mob.getPoints().map((p) => [...p]);
+    state.visiblePointCount = mob.getVisiblePointCount();
   }
 
   // Recursively capture children
@@ -135,7 +136,12 @@ export function deserializeMobject(mob: Mobject, state: MobjectState): void {
   mob.position.set(state.position[0], state.position[1], state.position[2]);
 
   // Rotation
-  mob.rotation.set(state.rotation[0], state.rotation[1], state.rotation[2], state.rotation[3] as any);
+  mob.rotation.set(
+    state.rotation[0],
+    state.rotation[1],
+    state.rotation[2],
+    state.rotation[3] as THREE.EulerOrder,
+  );
 
   // Scale
   mob.scaleVector.set(state.scale[0], state.scale[1], state.scale[2]);
@@ -157,8 +163,7 @@ export function deserializeMobject(mob: Mobject, state: MobjectState): void {
       mob.setPoints(state.points2D);
     }
     if (state.visiblePointCount !== undefined) {
-      (mob as any)._visiblePointCount = state.visiblePointCount;
-      (mob as any)._geometryDirty = true;
+      mob.setVisiblePointCount(state.visiblePointCount);
     }
   }
 
@@ -379,7 +384,7 @@ export class SceneStateManager {
     return {
       label,
       timestamp: Date.now(),
-      mobjects: mobjects.map(m => serializeMobject(m)),
+      mobjects: mobjects.map((m) => serializeMobject(m)),
     };
   }
 

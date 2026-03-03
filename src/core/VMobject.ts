@@ -286,6 +286,31 @@ export class VMobject extends Mobject {
   }
 
   /**
+   * Set visible point count for progressive creation animations.
+   * Use null to show all points.
+   */
+  setVisiblePointCount(count: number | null): void {
+    this._visiblePointCount = count;
+    this._geometryDirty = true;
+    this._markDirty();
+  }
+
+  /**
+   * Get the visible point count (null means all points visible).
+   */
+  getVisiblePointCount(): number | null {
+    return this._visiblePointCount;
+  }
+
+  /**
+   * Mark geometry as needing rebuild on next render.
+   */
+  markGeometryDirty(): void {
+    this._geometryDirty = true;
+    this._markDirty();
+  }
+
+  /**
    * Add points to this VMobject using 2D Point objects
    */
   addPoints(...points: Point[]): this {

@@ -84,17 +84,16 @@ function getMobjectKeyPoints(mobject: Mobject): number[][] {
   }
   // Fallback: use bounding box corners from the mobject
   const center = mobject.getCenter();
-  let w = 1, h = 1;
-  if (typeof (mobject as any)._getBoundingBox === 'function') {
-    const bb = (mobject as any)._getBoundingBox();
-    w = bb.width;
-    h = bb.height;
-  }
+  let w = 1,
+    h = 1;
+  const bb = mobject.getBoundingBox();
+  w = bb.width;
+  h = bb.height;
   return [
-    [center[0] - w/2, center[1] - h/2, center[2]],
-    [center[0] + w/2, center[1] - h/2, center[2]],
-    [center[0] + w/2, center[1] + h/2, center[2]],
-    [center[0] - w/2, center[1] + h/2, center[2]],
+    [center[0] - w / 2, center[1] - h / 2, center[2]],
+    [center[0] + w / 2, center[1] - h / 2, center[2]],
+    [center[0] + w / 2, center[1] + h / 2, center[2]],
+    [center[0] - w / 2, center[1] + h / 2, center[2]],
   ];
 }
 
@@ -130,12 +129,7 @@ export class Brace extends VMobject {
   constructor(mobject: Mobject, options: BraceOptions = {}) {
     super();
 
-    const {
-      direction = DOWN,
-      buff = 0.2,
-      color = WHITE,
-      sharpness = 2,
-    } = options;
+    const { direction = DOWN, buff = 0.2, color = WHITE, sharpness = 2 } = options;
 
     this.mobject = mobject;
     this.braceDirection = [...direction];
@@ -163,9 +157,7 @@ export class Brace extends VMobject {
 
     // Normalize direction
     const dirMag = Math.sqrt(
-      this.braceDirection[0] ** 2 +
-      this.braceDirection[1] ** 2 +
-      this.braceDirection[2] ** 2
+      this.braceDirection[0] ** 2 + this.braceDirection[1] ** 2 + this.braceDirection[2] ** 2,
     );
     const normDir: Vector3Tuple = [
       this.braceDirection[0] / dirMag,
@@ -222,7 +214,7 @@ export class Brace extends VMobject {
   protected _generateBraceFromPoints(
     start: Vector3Tuple,
     end: Vector3Tuple,
-    direction: Vector3Tuple
+    direction: Vector3Tuple,
   ): void {
     const dx = end[0] - start[0];
     const dy = end[1] - start[1];
@@ -256,11 +248,7 @@ export class Brace extends VMobject {
     const midX = (start[0] + end[0]) / 2;
     const midY = (start[1] + end[1]) / 2;
     const midZ = (start[2] + end[2]) / 2;
-    this._tipPoint = [
-      midX + n[0] * TIP_HEIGHT,
-      midY + n[1] * TIP_HEIGHT,
-      midZ,
-    ];
+    this._tipPoint = [midX + n[0] * TIP_HEIGHT, midY + n[1] * TIP_HEIGHT, midZ];
 
     // Helper: point at offset along tangent and normal from origin
     const pt = (ox: number[], td: number, nd: number): number[] => [
@@ -276,10 +264,10 @@ export class Brace extends VMobject {
     const rArmStart = pt(rArmEnd, -armLen, 0);
 
     // Centerline control points
-    const c1_h1 = pt(start, curlW * 0.30, CURL_HEIGHT * 0.85);
+    const c1_h1 = pt(start, curlW * 0.3, CURL_HEIGHT * 0.85);
     const c1_h2 = pt(start, curlW * 0.78, CURL_HEIGHT * 1.0);
     const c2_h1 = pt(lArmStart, armLen / 3, 0);
-    const c2_h2 = pt(lArmStart, armLen * 2 / 3, 0);
+    const c2_h2 = pt(lArmStart, (armLen * 2) / 3, 0);
     const c3_h1 = pt(lArmEnd, tipTransW * 0.55, tipProt * 0.05);
     const c3_h2: number[] = [
       this._tipPoint[0] - t[0] * tipTransW * 0.02 - n[0] * tipProt * 0.45,
@@ -293,29 +281,55 @@ export class Brace extends VMobject {
     ];
     const c4_h2 = pt(rArmStart, -tipTransW * 0.55, tipProt * 0.05);
     const c5_h1 = pt(rArmStart, armLen / 3, 0);
-    const c5_h2 = pt(rArmStart, armLen * 2 / 3, 0);
+    const c5_h2 = pt(rArmStart, (armLen * 2) / 3, 0);
     const c6_h1 = pt(end, -curlW * 0.78, CURL_HEIGHT * 1.0);
-    const c6_h2 = pt(end, -curlW * 0.30, CURL_HEIGHT * 0.85);
+    const c6_h2 = pt(end, -curlW * 0.3, CURL_HEIGHT * 0.85);
 
     // All 19 centerline points
     const cl: number[][] = [
-      [...start], c1_h1, c1_h2, lArmStart,
-      c2_h1, c2_h2, lArmEnd,
-      c3_h1, c3_h2, [...this._tipPoint],
-      c4_h1, c4_h2, rArmStart,
-      c5_h1, c5_h2, rArmEnd,
-      c6_h1, c6_h2, [...end],
+      [...start],
+      c1_h1,
+      c1_h2,
+      lArmStart,
+      c2_h1,
+      c2_h2,
+      lArmEnd,
+      c3_h1,
+      c3_h2,
+      [...this._tipPoint],
+      c4_h1,
+      c4_h2,
+      rArmStart,
+      c5_h1,
+      c5_h2,
+      rArmEnd,
+      c6_h1,
+      c6_h2,
+      [...end],
     ];
 
     // Half-thickness at each point (0 at ends/tip, max at arms)
     const H = 0.025;
     const ht = [
-      0, H*0.3, H*0.8, H,         // curl → arm start
-      H, H, H,                     // arm
-      H*0.7, H*0.15, 0,            // tip transition → tip
-      H*0.15, H*0.7, H,            // tip → arm start
-      H, H, H,                     // arm
-      H*0.8, H*0.3, 0,             // arm end → curl edge
+      0,
+      H * 0.3,
+      H * 0.8,
+      H, // curl → arm start
+      H,
+      H,
+      H, // arm
+      H * 0.7,
+      H * 0.15,
+      0, // tip transition → tip
+      H * 0.15,
+      H * 0.7,
+      H, // tip → arm start
+      H,
+      H,
+      H, // arm
+      H * 0.8,
+      H * 0.3,
+      0, // arm end → curl edge
     ];
 
     // Per-point normals (perpendicular to local tangent, pointing outward)
@@ -332,9 +346,13 @@ export class Brace extends VMobject {
       }
       const tx = ddx / len;
       const ty = ddy / len;
-      let nx = -ty, ny = tx;
+      let nx = -ty,
+        ny = tx;
       // Ensure normal points outward (same side as n)
-      if (nx * n[0] + ny * n[1] < 0) { nx = -nx; ny = -ny; }
+      if (nx * n[0] + ny * n[1] < 0) {
+        nx = -nx;
+        ny = -ny;
+      }
       normals.push([nx, ny]);
     }
 
@@ -343,34 +361,50 @@ export class Brace extends VMobject {
     const lower: number[][] = [];
     for (let i = 0; i < 19; i++) {
       const h = ht[i];
-      upper.push([
-        cl[i][0] + normals[i][0] * h,
-        cl[i][1] + normals[i][1] * h,
-        cl[i][2],
-      ]);
-      lower.push([
-        cl[i][0] - normals[i][0] * h,
-        cl[i][1] - normals[i][1] * h,
-        cl[i][2],
-      ]);
+      upper.push([cl[i][0] + normals[i][0] * h, cl[i][1] + normals[i][1] * h, cl[i][2]]);
+      lower.push([cl[i][0] - normals[i][0] * h, cl[i][1] - normals[i][1] * h, cl[i][2]]);
     }
 
     // Closed filled path: upper contour forward + lower contour reversed
     this.setPoints3D([
       upper[0],
-      upper[1],  upper[2],  upper[3],   // curve 1
-      upper[4],  upper[5],  upper[6],   // curve 2
-      upper[7],  upper[8],  upper[9],   // curve 3
-      upper[10], upper[11], upper[12],  // curve 4
-      upper[13], upper[14], upper[15],  // curve 5
-      upper[16], upper[17], upper[18],  // curve 6
+      upper[1],
+      upper[2],
+      upper[3], // curve 1
+      upper[4],
+      upper[5],
+      upper[6], // curve 2
+      upper[7],
+      upper[8],
+      upper[9], // curve 3
+      upper[10],
+      upper[11],
+      upper[12], // curve 4
+      upper[13],
+      upper[14],
+      upper[15], // curve 5
+      upper[16],
+      upper[17],
+      upper[18], // curve 6
       // Lower contour reversed (right to left)
-      lower[17], lower[16], lower[15],  // curve 6 rev
-      lower[14], lower[13], lower[12],  // curve 5 rev
-      lower[11], lower[10], lower[9],   // curve 4 rev
-      lower[8],  lower[7],  lower[6],   // curve 3 rev
-      lower[5],  lower[4],  lower[3],   // curve 2 rev
-      lower[2],  lower[1],  lower[0],   // curve 1 rev
+      lower[17],
+      lower[16],
+      lower[15], // curve 6 rev
+      lower[14],
+      lower[13],
+      lower[12], // curve 5 rev
+      lower[11],
+      lower[10],
+      lower[9], // curve 4 rev
+      lower[8],
+      lower[7],
+      lower[6], // curve 3 rev
+      lower[5],
+      lower[4],
+      lower[3], // curve 2 rev
+      lower[2],
+      lower[1],
+      lower[0], // curve 1 rev
     ]);
   }
 
@@ -388,9 +422,7 @@ export class Brace extends VMobject {
    */
   getDirection(): Vector3Tuple {
     const mag = Math.sqrt(
-      this.braceDirection[0] ** 2 +
-      this.braceDirection[1] ** 2 +
-      this.braceDirection[2] ** 2
+      this.braceDirection[0] ** 2 + this.braceDirection[1] ** 2 + this.braceDirection[2] ** 2,
     );
     return [
       this.braceDirection[0] / mag,
@@ -408,11 +440,7 @@ export class Brace extends VMobject {
     const tip = this.getTip();
     const dir = this.getDirection();
     const label = new Text({ text, fontSize, color });
-    label.moveTo([
-      tip[0] + dir[0] * buff,
-      tip[1] + dir[1] * buff,
-      tip[2],
-    ]);
+    label.moveTo([tip[0] + dir[0] * buff, tip[1] + dir[1] * buff, tip[2]]);
     return label;
   }
 
@@ -420,16 +448,15 @@ export class Brace extends VMobject {
    * Create a MathTex label positioned at the tip of the brace.
    * Mirrors Manim's Brace.get_tex() API.
    */
-  getTex(latex: string, options: { fontSize?: number; color?: string; buff?: number } = {}): MathTex {
+  getTex(
+    latex: string,
+    options: { fontSize?: number; color?: string; buff?: number } = {},
+  ): MathTex {
     const { fontSize = 36, color = WHITE, buff = 0.4 } = options;
     const tip = this.getTip();
     const dir = this.getDirection();
     const label = new MathTex({ latex, fontSize, color });
-    label.moveTo([
-      tip[0] + dir[0] * buff,
-      tip[1] + dir[1] * buff,
-      tip[2],
-    ]);
+    label.moveTo([tip[0] + dir[0] * buff, tip[1] + dir[1] * buff, tip[2]]);
     return label;
   }
 
@@ -447,7 +474,6 @@ export class Brace extends VMobject {
     return brace;
   }
 }
-
 
 /**
  * BraceBetweenPoints - A curly brace between two arbitrary points
@@ -475,14 +501,7 @@ export class BraceBetweenPoints extends VMobject {
   constructor(options: BraceBetweenPointsOptions) {
     super();
 
-    const {
-      start,
-      end,
-      direction,
-      buff = 0.2,
-      color = WHITE,
-      sharpness = 2,
-    } = options;
+    const { start, end, direction, buff = 0.2, color = WHITE, sharpness = 2 } = options;
 
     this._start = [...start];
     this._end = [...end];
@@ -518,9 +537,7 @@ export class BraceBetweenPoints extends VMobject {
   protected _generateBracePoints(): void {
     // Normalize direction
     const dirMag = Math.sqrt(
-      this._direction[0] ** 2 +
-      this._direction[1] ** 2 +
-      this._direction[2] ** 2
+      this._direction[0] ** 2 + this._direction[1] ** 2 + this._direction[2] ** 2,
     );
     const normDir: Vector3Tuple = [
       this._direction[0] / dirMag,
@@ -550,7 +567,7 @@ export class BraceBetweenPoints extends VMobject {
   protected _generateBraceFromPoints(
     start: Vector3Tuple,
     end: Vector3Tuple,
-    direction: Vector3Tuple
+    direction: Vector3Tuple,
   ): void {
     const dx = end[0] - start[0];
     const dy = end[1] - start[1];
@@ -592,10 +609,10 @@ export class BraceBetweenPoints extends VMobject {
     const rArmEnd = pt(end, -curlW, CURL_HEIGHT);
     const rArmStart = pt(rArmEnd, -armLen, 0);
 
-    const c1_h1 = pt(start, curlW * 0.30, CURL_HEIGHT * 0.85);
+    const c1_h1 = pt(start, curlW * 0.3, CURL_HEIGHT * 0.85);
     const c1_h2 = pt(start, curlW * 0.78, CURL_HEIGHT * 1.0);
     const c2_h1 = pt(lArmStart, armLen / 3, 0);
-    const c2_h2 = pt(lArmStart, armLen * 2 / 3, 0);
+    const c2_h2 = pt(lArmStart, (armLen * 2) / 3, 0);
     const c3_h1 = pt(lArmEnd, tipTransW * 0.55, tipProt * 0.05);
     const c3_h2: number[] = [
       this._tipPoint[0] - t[0] * tipTransW * 0.02 - n[0] * tipProt * 0.45,
@@ -609,29 +626,55 @@ export class BraceBetweenPoints extends VMobject {
     ];
     const c4_h2 = pt(rArmStart, -tipTransW * 0.55, tipProt * 0.05);
     const c5_h1 = pt(rArmStart, armLen / 3, 0);
-    const c5_h2 = pt(rArmStart, armLen * 2 / 3, 0);
+    const c5_h2 = pt(rArmStart, (armLen * 2) / 3, 0);
     const c6_h1 = pt(end, -curlW * 0.78, CURL_HEIGHT * 1.0);
-    const c6_h2 = pt(end, -curlW * 0.30, CURL_HEIGHT * 0.85);
+    const c6_h2 = pt(end, -curlW * 0.3, CURL_HEIGHT * 0.85);
 
     // All 19 centerline points
     const cl: number[][] = [
-      [...start], c1_h1, c1_h2, lArmStart,
-      c2_h1, c2_h2, lArmEnd,
-      c3_h1, c3_h2, [...this._tipPoint],
-      c4_h1, c4_h2, rArmStart,
-      c5_h1, c5_h2, rArmEnd,
-      c6_h1, c6_h2, [...end],
+      [...start],
+      c1_h1,
+      c1_h2,
+      lArmStart,
+      c2_h1,
+      c2_h2,
+      lArmEnd,
+      c3_h1,
+      c3_h2,
+      [...this._tipPoint],
+      c4_h1,
+      c4_h2,
+      rArmStart,
+      c5_h1,
+      c5_h2,
+      rArmEnd,
+      c6_h1,
+      c6_h2,
+      [...end],
     ];
 
     // Half-thickness at each point (0 at ends/tip, max at arms)
     const H = 0.025;
     const ht = [
-      0, H*0.3, H*0.8, H,
-      H, H, H,
-      H*0.7, H*0.15, 0,
-      H*0.15, H*0.7, H,
-      H, H, H,
-      H*0.8, H*0.3, 0,
+      0,
+      H * 0.3,
+      H * 0.8,
+      H,
+      H,
+      H,
+      H,
+      H * 0.7,
+      H * 0.15,
+      0,
+      H * 0.15,
+      H * 0.7,
+      H,
+      H,
+      H,
+      H,
+      H * 0.8,
+      H * 0.3,
+      0,
     ];
 
     // Per-point normals
@@ -648,8 +691,12 @@ export class BraceBetweenPoints extends VMobject {
       }
       const tx = ddx / len;
       const ty = ddy / len;
-      let nx = -ty, ny = tx;
-      if (nx * n[0] + ny * n[1] < 0) { nx = -nx; ny = -ny; }
+      let nx = -ty,
+        ny = tx;
+      if (nx * n[0] + ny * n[1] < 0) {
+        nx = -nx;
+        ny = -ny;
+      }
       normals.push([nx, ny]);
     }
 
@@ -657,24 +704,48 @@ export class BraceBetweenPoints extends VMobject {
     const lower: number[][] = [];
     for (let i = 0; i < 19; i++) {
       const h = ht[i];
-      upper.push([cl[i][0] + normals[i][0]*h, cl[i][1] + normals[i][1]*h, cl[i][2]]);
-      lower.push([cl[i][0] - normals[i][0]*h, cl[i][1] - normals[i][1]*h, cl[i][2]]);
+      upper.push([cl[i][0] + normals[i][0] * h, cl[i][1] + normals[i][1] * h, cl[i][2]]);
+      lower.push([cl[i][0] - normals[i][0] * h, cl[i][1] - normals[i][1] * h, cl[i][2]]);
     }
 
     this.setPoints3D([
       upper[0],
-      upper[1],  upper[2],  upper[3],
-      upper[4],  upper[5],  upper[6],
-      upper[7],  upper[8],  upper[9],
-      upper[10], upper[11], upper[12],
-      upper[13], upper[14], upper[15],
-      upper[16], upper[17], upper[18],
-      lower[17], lower[16], lower[15],
-      lower[14], lower[13], lower[12],
-      lower[11], lower[10], lower[9],
-      lower[8],  lower[7],  lower[6],
-      lower[5],  lower[4],  lower[3],
-      lower[2],  lower[1],  lower[0],
+      upper[1],
+      upper[2],
+      upper[3],
+      upper[4],
+      upper[5],
+      upper[6],
+      upper[7],
+      upper[8],
+      upper[9],
+      upper[10],
+      upper[11],
+      upper[12],
+      upper[13],
+      upper[14],
+      upper[15],
+      upper[16],
+      upper[17],
+      upper[18],
+      lower[17],
+      lower[16],
+      lower[15],
+      lower[14],
+      lower[13],
+      lower[12],
+      lower[11],
+      lower[10],
+      lower[9],
+      lower[8],
+      lower[7],
+      lower[6],
+      lower[5],
+      lower[4],
+      lower[3],
+      lower[2],
+      lower[1],
+      lower[0],
     ]);
   }
 
@@ -692,15 +763,9 @@ export class BraceBetweenPoints extends VMobject {
    */
   getDirection(): Vector3Tuple {
     const mag = Math.sqrt(
-      this._direction[0] ** 2 +
-      this._direction[1] ** 2 +
-      this._direction[2] ** 2
+      this._direction[0] ** 2 + this._direction[1] ** 2 + this._direction[2] ** 2,
     );
-    return [
-      this._direction[0] / mag,
-      this._direction[1] / mag,
-      this._direction[2] / mag,
-    ];
+    return [this._direction[0] / mag, this._direction[1] / mag, this._direction[2] / mag];
   }
 
   /**
@@ -733,7 +798,6 @@ export class BraceBetweenPoints extends VMobject {
   }
 }
 
-
 /**
  * ArcBrace - A curly brace that follows an arc
  *
@@ -759,13 +823,7 @@ export class ArcBrace extends VMobject {
   constructor(options: ArcBraceOptions) {
     super();
 
-    const {
-      arc,
-      direction = 1,
-      buff = 0.2,
-      color = WHITE,
-      strokeWidth = 1,
-    } = options;
+    const { arc, direction = 1, buff = 0.2, color = WHITE, strokeWidth = 1 } = options;
 
     this._arc = arc;
     this._direction = direction;
@@ -797,7 +855,7 @@ export class ArcBrace extends VMobject {
     // Key angles
     const midAngle = startAngle + arcAngle / 2;
     const q1Angle = startAngle + arcAngle / 4;
-    const q3Angle = startAngle + 3 * arcAngle / 4;
+    const q3Angle = startAngle + (3 * arcAngle) / 4;
 
     // Calculate tip point (at middle of arc)
     this._tipPoint = [
@@ -886,7 +944,11 @@ export class ArcBrace extends VMobject {
     points.push([...q3Point]);
 
     // Curve 4: Three-quarter to end
-    const tangentEnd: Vector3Tuple = [-Math.sin(startAngle + arcAngle), Math.cos(startAngle + arcAngle), 0];
+    const tangentEnd: Vector3Tuple = [
+      -Math.sin(startAngle + arcAngle),
+      Math.cos(startAngle + arcAngle),
+      0,
+    ];
 
     points.push([
       q3Point[0] + kappa * braceRadius * tangentQ3[0],
@@ -931,7 +993,6 @@ export class ArcBrace extends VMobject {
     });
   }
 }
-
 
 /**
  * BraceLabel - A brace with an attached label
@@ -1058,7 +1119,6 @@ export class BraceLabel extends Group {
   }
 }
 
-
 /**
  * BraceText - Alias for BraceLabel with text
  *
@@ -1073,11 +1133,7 @@ export class BraceLabel extends Group {
  * ```
  */
 export class BraceText extends BraceLabel {
-  constructor(
-    mobject: Mobject,
-    text: string,
-    options: Omit<BraceLabelOptions, 'label'> = {}
-  ) {
+  constructor(mobject: Mobject, text: string, options: Omit<BraceLabelOptions, 'label'> = {}) {
     super(mobject, { ...options, label: text });
   }
 
@@ -1085,9 +1141,7 @@ export class BraceText extends BraceLabel {
    * Create a copy of this BraceText
    */
   protected override _createCopy(): BraceText {
-    const labelText = this._label instanceof Text
-      ? (this._label as Text).getText()
-      : '';
+    const labelText = this._label instanceof Text ? (this._label as Text).getText() : '';
     return new BraceText(this._brace.mobject!, labelText, {
       direction: this._brace.braceDirection,
       buff: this._brace.buff,

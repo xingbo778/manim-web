@@ -244,7 +244,7 @@ export class ImageMobject extends Mobject {
           this._loadReject = null;
           this._loadResolve = null;
         }
-      }
+      },
     );
   }
 
@@ -625,7 +625,7 @@ export class ImageMobject extends Mobject {
   /**
    * Override getBoundingBox to use calculated dimensions
    */
-  protected override _getBoundingBox(): { width: number; height: number; depth: number } {
+  override getBoundingBox(): { width: number; height: number; depth: number } {
     const dims = this._calculateDimensions();
     return {
       width: dims.width * this.scaleVector.x,

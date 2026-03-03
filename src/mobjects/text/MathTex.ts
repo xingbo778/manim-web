@@ -333,8 +333,7 @@ export class MathTex extends Mobject {
       | undefined;
     if (firstFailure) {
       const err = firstFailure.reason;
-      this._renderState.renderError =
-        err instanceof Error ? err : new Error(String(err));
+      this._renderState.renderError = err instanceof Error ? err : new Error(String(err));
       return;
     }
 
@@ -385,7 +384,7 @@ export class MathTex extends Mobject {
   getDimensions(): [number, number] {
     if (this._isMultiPart) {
       // Compute aggregate dimensions from bounding box of all parts
-      const bbox = this._getBoundingBox();
+      const bbox = this.getBoundingBox();
       return [bbox.width, bbox.height];
     }
     return [this._renderState.width, this._renderState.height];
@@ -593,9 +592,11 @@ export class MathTex extends Mobject {
             document.fonts.load(`${fs} KaTeX_Size1`),
             document.fonts.load(`${fs} KaTeX_Size2`),
             document.fonts.load(`${fs} KaTeX_AMS`),
-          ].map((p) => p.catch((err) => {
-            console.warn('MathTex: KaTeX font failed to load. Rendering may be degraded.', err);
-          })),
+          ].map((p) =>
+            p.catch((err) => {
+              console.warn('MathTex: KaTeX font failed to load. Rendering may be degraded.', err);
+            }),
+          ),
         ),
         fontTimeout,
       ]);

@@ -151,8 +151,8 @@ export class Draggable {
 
     // Use camera's frame dimensions
     const camera = this._scene.camera;
-    const worldX = x * camera.frameWidth / 2;
-    const worldY = y * camera.frameHeight / 2;
+    const worldX = (x * camera.frameWidth) / 2;
+    const worldY = (y * camera.frameHeight) / 2;
 
     return [worldX, worldY, 0];
   }
@@ -160,10 +160,12 @@ export class Draggable {
   private _hitTest(worldPos: Vector3Tuple): boolean {
     // Check if point is within mobject's bounding box
     const center = this._mobject.getCenter();
-    const bounds = (this._mobject as any)._getBoundingBox?.() ?? { width: 1, height: 1 };
+    const bounds = this._mobject._getBoundingBox?.() ?? { width: 1, height: 1 };
 
-    return Math.abs(worldPos[0] - center[0]) <= bounds.width / 2 &&
-           Math.abs(worldPos[1] - center[1]) <= bounds.height / 2;
+    return (
+      Math.abs(worldPos[0] - center[0]) <= bounds.width / 2 &&
+      Math.abs(worldPos[1] - center[1]) <= bounds.height / 2
+    );
   }
 
   private _startDrag(worldPos: Vector3Tuple): void {
@@ -197,7 +199,7 @@ export class Draggable {
     const delta: Vector3Tuple = [
       newPos[0] - this._lastPosition[0],
       newPos[1] - this._lastPosition[1],
-      0
+      0,
     ];
 
     this._mobject.moveTo(newPos);
@@ -247,6 +249,10 @@ export class Draggable {
  * @param options - Draggable configuration options
  * @returns A new Draggable instance
  */
-export function makeDraggable(mobject: Mobject, scene: Scene, options?: DraggableOptions): Draggable {
+export function makeDraggable(
+  mobject: Mobject,
+  scene: Scene,
+  options?: DraggableOptions,
+): Draggable {
   return new Draggable(mobject, scene, options);
 }

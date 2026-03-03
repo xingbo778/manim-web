@@ -31,13 +31,8 @@ export { VDict, VectorizedPoint } from './core/VDict';
 export { Group } from './core/Group';
 export { Scene, type SceneOptions, type SceneExportOptions } from './core/Scene';
 export { InteractiveScene, type InteractiveSceneOptions } from './core/InteractiveScene';
-export {
-  ThreeDScene,
-  type ThreeDSceneOptions,
-  ZoomedScene,
-  ZoomDisplayPopOut,
-  type ZoomedSceneOptions,
-} from './core/SceneExtensions';
+export { ThreeDScene, type ThreeDSceneOptions } from './core/ThreeDScene';
+export { ZoomedScene, ZoomDisplayPopOut, type ZoomedSceneOptions } from './core/ZoomedScene';
 export { AudioManager, type AudioTrack, type AddSoundOptions } from './core/AudioManager';
 export { Renderer, type RendererOptions } from './core/Renderer';
 export {

@@ -25,47 +25,28 @@ export {
 } from './Polygon';
 
 // Arrow and variants
-export {
-  Arrow,
-  DoubleArrow,
-  Vector,
-  type ArrowOptions,
-} from './Arrow';
+export { Arrow, DoubleArrow, Vector, type ArrowOptions } from './Arrow';
 
 // Arc and variants
 export { Arc, type ArcOptions } from './Arc';
 export { ArcBetweenPoints, type ArcBetweenPointsOptions } from './ArcBetweenPoints';
 
 // Arc-based shapes
-export {
-  Ellipse,
-  type EllipseOptions,
-  Annulus,
-  type AnnulusOptions,
-  AnnularSector,
-  type AnnularSectorOptions,
-  Sector,
-  type SectorOptions,
-  ArcPolygon,
-  type ArcPolygonOptions,
-  type ArcConfig,
-  CurvedArrow,
-  CurvedDoubleArrow,
-  type CurvedArrowOptions,
-  TangentialArc,
-  type TangentialArcOptions,
-} from './ArcShapes';
+export { Ellipse, type EllipseOptions } from './Ellipse';
+export { Annulus, type AnnulusOptions } from './Annulus';
+export { AnnularSector, type AnnularSectorOptions } from './AnnularSector';
+export { Sector, type SectorOptions } from './Sector';
+export { ArcPolygon, type ArcPolygonOptions, type ArcConfig } from './ArcPolygon';
+export { CurvedArrow, type CurvedArrowOptions } from './CurvedArrow';
+export { CurvedDoubleArrow } from './CurvedDoubleArrow';
+export { TangentialArc, type TangentialArcOptions } from './TangentialArc';
 
 // Dashed shapes
 export { DashedLine, type DashedLineOptions } from './DashedLine';
 export { DashedVMobject, type DashedVMobjectOptions } from './DashedVMobject';
 
 // Cubic Bezier
-export {
-  CubicBezier,
-  type CubicBezierOptions,
-  type CubicBezierPoints,
-} from './CubicBezier';
+export { CubicBezier, type CubicBezierOptions, type CubicBezierPoints } from './CubicBezier';
 
 // Dot and variants
 export { Dot, SmallDot, LargeDot, type DotOptions } from './Dot';

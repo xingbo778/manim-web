@@ -88,7 +88,9 @@ export class Group extends Mobject {
       return [this.position.x, this.position.y, this.position.z];
     }
 
-    let sumX = 0, sumY = 0, sumZ = 0;
+    let sumX = 0,
+      sumY = 0,
+      sumZ = 0;
     for (const child of this.children) {
       const center = child.getCenter();
       sumX += center[0];
@@ -130,7 +132,7 @@ export class Group extends Mobject {
         return this.shift([
           targetEdge[0] - thisEdge[0],
           targetEdge[1] - thisEdge[1],
-          targetEdge[2] - thisEdge[2]
+          targetEdge[2] - thisEdge[2],
         ]);
       }
       const targetCenter = target.getCenter();
@@ -140,7 +142,7 @@ export class Group extends Mobject {
     const delta: Vector3Tuple = [
       target[0] - currentCenter[0],
       target[1] - currentCenter[1],
-      target[2] - currentCenter[2]
+      target[2] - currentCenter[2],
     ];
     return this.shift(delta);
   }
@@ -152,9 +154,12 @@ export class Group extends Mobject {
    * @param axis - Axis of rotation [x, y, z], defaults to Z axis
    * @returns this for chaining
    */
-  override rotate(angle: number, axis: Vector3Tuple = [0, 0, 1]): this {
+  override rotate(
+    angle: number,
+    axisOrOptions?: Vector3Tuple | { axis?: Vector3Tuple; aboutPoint?: Vector3Tuple },
+  ): this {
     for (const child of this.children) {
-      child.rotate(angle, axis);
+      child.rotate(angle, axisOrOptions);
     }
     this._markDirty();
     return this;
@@ -298,7 +303,7 @@ export class Group extends Mobject {
    */
   filter(fn: (mobject: Mobject, index: number) => boolean): Group {
     const filtered = this.children.filter(fn);
-    return new Group(...filtered.map(m => m.copy()));
+    return new Group(...filtered.map((m) => m.copy()));
   }
 }
 

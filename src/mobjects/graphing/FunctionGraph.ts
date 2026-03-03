@@ -146,8 +146,12 @@ export class FunctionGraph extends VMobject {
   private _sampleRange(start: number, end: number): number[][] {
     const points: number[][] = [];
     const range = end - start;
-    const sampleCount = Math.max(2, Math.ceil(this._numSamples * range / (this._xRange[1] - this._xRange[0])));
+    const sampleCount = Math.max(
+      2,
+      Math.ceil((this._numSamples * range) / (this._xRange[1] - this._xRange[0])),
+    );
     const dx = range / (sampleCount - 1);
+    let errorCount = 0;
 
     for (let i = 0; i < sampleCount; i++) {
       const x = start + i * dx;
@@ -160,10 +164,17 @@ export class FunctionGraph extends VMobject {
         // Transform to visual coordinates if axes are provided
         const point = this._axes ? this._axes.coordsToPoint(x, y) : [x, y, 0];
         points.push(point);
-      } catch {
-        // Skip points where function throws
+      } catch (err) {
+        errorCount++;
+        if (errorCount === 1) {
+          console.warn(`FunctionGraph: user function threw at x=${x}`, err);
+        }
         continue;
       }
+    }
+
+    if (errorCount > 0) {
+      console.warn(`FunctionGraph: function threw ${errorCount}/${sampleCount} times`);
     }
 
     return points;
@@ -184,7 +195,7 @@ export class FunctionGraph extends VMobject {
       return [
         [...p0],
         [p0[0] + dx / 3, p0[1] + dy / 3, p0[2] + dz / 3],
-        [p0[0] + 2 * dx / 3, p0[1] + 2 * dy / 3, p0[2] + 2 * dz / 3],
+        [p0[0] + (2 * dx) / 3, p0[1] + (2 * dy) / 3, p0[2] + (2 * dz) / 3],
         [...p1],
       ];
     }
@@ -200,27 +211,11 @@ export class FunctionGraph extends VMobject {
 
       // Calculate control points
       const tension = 0.5;
-      const d1 = [
-        (p2[0] - p0[0]) * tension,
-        (p2[1] - p0[1]) * tension,
-        (p2[2] - p0[2]) * tension,
-      ];
-      const d2 = [
-        (p3[0] - p1[0]) * tension,
-        (p3[1] - p1[1]) * tension,
-        (p3[2] - p1[2]) * tension,
-      ];
+      const d1 = [(p2[0] - p0[0]) * tension, (p2[1] - p0[1]) * tension, (p2[2] - p0[2]) * tension];
+      const d2 = [(p3[0] - p1[0]) * tension, (p3[1] - p1[1]) * tension, (p3[2] - p1[2]) * tension];
 
-      const cp1 = [
-        p1[0] + d1[0] / 3,
-        p1[1] + d1[1] / 3,
-        p1[2] + d1[2] / 3,
-      ];
-      const cp2 = [
-        p2[0] - d2[0] / 3,
-        p2[1] - d2[1] / 3,
-        p2[2] - d2[2] / 3,
-      ];
+      const cp1 = [p1[0] + d1[0] / 3, p1[1] + d1[1] / 3, p1[2] + d1[2] / 3];
+      const cp2 = [p2[0] - d2[0] / 3, p2[1] - d2[1] / 3, p2[2] - d2[2] / 3];
 
       if (i === 0) {
         bezierPoints.push([...p1]);
@@ -245,7 +240,7 @@ export class FunctionGraph extends VMobject {
     if (x < xMin || x > xMax) return null;
 
     // Check if x is at a discontinuity
-    const epsilon = (xMax - xMin) / this._numSamples * 0.1;
+    const epsilon = ((xMax - xMin) / this._numSamples) * 0.1;
     for (const discX of this._discontinuities) {
       if (Math.abs(x - discX) < epsilon) return null;
     }
@@ -258,7 +253,8 @@ export class FunctionGraph extends VMobject {
         return this._axes.coordsToPoint(x, y);
       }
       return [x, y, 0];
-    } catch {
+    } catch (err) {
+      console.warn(`FunctionGraph.getPointFromX: function threw at x=${x}`, err);
       return null;
     }
   }

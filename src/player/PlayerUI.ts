@@ -569,6 +569,30 @@ export class PlayerUI {
     );
   }
 
+  /** Show a temporary error message overlay on the player. */
+  showError(message: string): void {
+    const overlay = document.createElement('div');
+    overlay.textContent = message;
+    overlay.style.cssText = [
+      'position:absolute',
+      'top:50%',
+      'left:50%',
+      'transform:translate(-50%,-50%)',
+      'background:rgba(200,30,30,0.85)',
+      'color:#fff',
+      'padding:12px 24px',
+      'border-radius:8px',
+      'font:14px/1.4 sans-serif',
+      'z-index:1000',
+      'pointer-events:none',
+      'white-space:pre-wrap',
+      'max-width:80%',
+      'text-align:center',
+    ].join(';');
+    this._container.appendChild(overlay);
+    setTimeout(() => overlay.remove(), 4000);
+  }
+
   // ---------------------------------------------------------------------------
   // Cleanup
   // ---------------------------------------------------------------------------

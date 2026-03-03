@@ -327,6 +327,7 @@ export class Player {
       });
     } catch (err) {
       console.error('Export failed:', err);
+      this._ui.showError(`Export failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
       this._ui.setExportProgress(null);
       // Restore playback position (export seeks through the entire timeline)

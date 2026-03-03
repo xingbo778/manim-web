@@ -91,7 +91,7 @@ export function hungarian(costMatrix: number[][]): HungarianResult {
         return costMatrix[i][j];
       }
       return DUMMY_COST;
-    })
+    }),
   );
 
   // Hungarian algorithm (Kuhn-Munkres) using the potential method.
@@ -99,67 +99,16 @@ export function hungarian(costMatrix: number[][]): HungarianResult {
   //
   // u[i] = potential for row i (worker)
   // v[j] = potential for column j (job)
-  // rowAssign[i] = column assigned to row i (-1 if unassigned)
-  // colAssign[j] = row assigned to column j (-1 if unassigned)
+  // rowAssign[j] = row assigned to col j (1-indexed, 0 = unassigned)
 
-  const u = new Float64Array(n + 1);  // row potentials (1-indexed, 0 unused)
-  const v = new Float64Array(n + 1);  // col potentials (1-indexed, 0 unused)
-  const rowAssign = new Int32Array(n + 1).fill(0);  // p[j] = row assigned to col j
-  const way = new Int32Array(n + 1).fill(0);         // way[j] = previous col in augmenting path
+  const u = new Float64Array(n + 1); // row potentials (1-indexed, 0 unused)
+  const v = new Float64Array(n + 1); // col potentials (1-indexed, 0 unused)
+  const rowAssign = new Int32Array(n + 1).fill(0);
+  const way = new Int32Array(n + 1).fill(0);
 
   // Process each row one at a time
   for (let i = 1; i <= n; i++) {
-    // Start a new augmenting path from row i.
-    // We use column 0 as a virtual "starting" column.
-    rowAssign[0] = i;
-    let j0 = 0; // current column in the path
-
-    const minv = new Float64Array(n + 1).fill(Infinity);
-    const used = new Uint8Array(n + 1); // boolean flags
-
-    // Find augmenting path using Dijkstra-like shortest path
-    do {
-      used[j0] = 1;
-      const i0 = rowAssign[j0];
-      let delta = Infinity;
-      let j1 = -1;
-
-      for (let j = 1; j <= n; j++) {
-        if (used[j]) continue;
-
-        // Reduced cost
-        const cur = cost[i0 - 1][j - 1] - u[i0] - v[j];
-
-        if (cur < minv[j]) {
-          minv[j] = cur;
-          way[j] = j0;
-        }
-
-        if (minv[j] < delta) {
-          delta = minv[j];
-          j1 = j;
-        }
-      }
-
-      // Update potentials along the path
-      for (let j = 0; j <= n; j++) {
-        if (used[j]) {
-          u[rowAssign[j]] += delta;
-          v[j] -= delta;
-        } else {
-          minv[j] -= delta;
-        }
-      }
-
-      j0 = j1;
-    } while (rowAssign[j0] !== 0);
-
-    // Trace back the augmenting path and update assignments
-    do {
-      const j1 = way[j0];
-      rowAssign[j0] = rowAssign[j1];
-      j0 = j1;
-    } while (j0 !== 0);
+    augmentRow(i, n, cost, u, v, rowAssign, way);
   }
 
   // Extract results (convert from 1-indexed to 0-indexed)
@@ -187,6 +136,66 @@ export function hungarian(costMatrix: number[][]): HungarianResult {
 }
 
 /**
+ * Find an augmenting path for row i and update assignments/potentials.
+ * Extracted from the main hungarian loop to reduce cyclomatic complexity.
+ */
+function augmentRow(
+  i: number,
+  n: number,
+  cost: number[][],
+  u: Float64Array,
+  v: Float64Array,
+  rowAssign: Int32Array,
+  way: Int32Array,
+): void {
+  rowAssign[0] = i;
+  let j0 = 0;
+
+  const minv = new Float64Array(n + 1).fill(Infinity);
+  const used = new Uint8Array(n + 1);
+
+  do {
+    used[j0] = 1;
+    const i0 = rowAssign[j0];
+    let delta = Infinity;
+    let j1 = -1;
+
+    for (let j = 1; j <= n; j++) {
+      if (used[j]) continue;
+
+      const cur = cost[i0 - 1][j - 1] - u[i0] - v[j];
+
+      if (cur < minv[j]) {
+        minv[j] = cur;
+        way[j] = j0;
+      }
+
+      if (minv[j] < delta) {
+        delta = minv[j];
+        j1 = j;
+      }
+    }
+
+    for (let j = 0; j <= n; j++) {
+      if (used[j]) {
+        u[rowAssign[j]] += delta;
+        v[j] -= delta;
+      } else {
+        minv[j] -= delta;
+      }
+    }
+
+    j0 = j1;
+  } while (rowAssign[j0] !== 0);
+
+  do {
+    const j1 = way[j0];
+    rowAssign[j0] = rowAssign[j1];
+    j0 = j1;
+  } while (j0 !== 0);
+}
+
+/**
  * Convenience function to find the optimal matching given a similarity matrix.
  * Converts similarities (higher = better) to costs (lower = better) and
  * runs the Hungarian algorithm.
@@ -198,7 +207,7 @@ export function hungarian(costMatrix: number[][]): HungarianResult {
  */
 export function hungarianFromSimilarity(
   similarityMatrix: number[][],
-  threshold: number = 0
+  threshold: number = 0,
 ): HungarianResult {
   const rows = similarityMatrix.length;
   if (rows === 0) {
@@ -233,7 +242,7 @@ export function hungarianFromSimilarity(
         return maxSim - similarityMatrix[i][j];
       }
       return penaltyCost;
-    })
+    }),
   );
 
   const result = hungarian(costMatrix);

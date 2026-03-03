@@ -74,35 +74,43 @@ export function skeletonizeGlyph(
   if (chains.length === 0) return [];
 
   // 5. Convert pixel chains back to world coordinates, smooth, and fit Beziers
+  return chainsToBeziers(chains, bbox, cols, rows, smoothSubs);
+}
+
+/**
+ * Convert traced pixel chains to cubic Bezier control points.
+ * Each chain is smoothed with Catmull-Rom and fit to Bezier curves.
+ * Multiple chains are joined with degenerate zero-length segments.
+ */
+function chainsToBeziers(
+  chains: number[][][],
+  bbox: BBox,
+  cols: number,
+  rows: number,
+  smoothSubs: number,
+): number[][] {
   const allPoints: number[][] = [];
   let firstChain = true;
 
   for (const chain of chains) {
-    // Convert pixel coords to world coords
     const worldChain = chain.map(([px, py]) => pixelToWorld(px, py, bbox, cols, rows));
-
-    // Smooth with Catmull-Rom subdivision
     const smooth = catmullRomSmooth(worldChain, smoothSubs);
     if (smooth.length < 2) continue;
 
-    // Fit cubic Beziers
     const beziers = fitCubicBeziers(smooth);
     if (beziers.length === 0) continue;
 
     if (!firstChain && allPoints.length > 0) {
-      // Join chains with a degenerate zero-length segment
       const lastPt = allPoints[allPoints.length - 1];
       const newPt = beziers[0];
       allPoints.push([...lastPt]);
       allPoints.push([...newPt]);
       allPoints.push([...newPt]);
     } else {
-      // First anchor of first chain
       allPoints.push(beziers[0]);
       firstChain = false;
     }
 
-    // Append remaining Bezier points (handle1, handle2, anchor per segment)
     for (let i = 1; i < beziers.length; i++) {
       allPoints.push(beziers[i]);
     }
@@ -265,80 +273,94 @@ function flattenCubicsToSegments(
 function zhangSuenThin(grid: Uint8Array, cols: number, rows: number): void {
   let changed = true;
 
-  // Temporary flags: 0 = background, 1 = foreground, 2 = marked for removal
   while (changed) {
     changed = false;
 
-    // --- Sub-iteration 1 ---
-    for (let r = 1; r < rows - 1; r++) {
-      for (let c = 1; c < cols - 1; c++) {
-        if (grid[r * cols + c] !== 1) continue;
+    // Sub-iteration 1: check P2,P4,P6 and P4,P6,P8
+    if (zhangSuenPass(grid, cols, rows, 1)) changed = true;
 
-        const p2 = grid[(r - 1) * cols + c];
-        const p3 = grid[(r - 1) * cols + c + 1];
-        const p4 = grid[r * cols + c + 1];
-        const p5 = grid[(r + 1) * cols + c + 1];
-        const p6 = grid[(r + 1) * cols + c];
-        const p7 = grid[(r + 1) * cols + c - 1];
-        const p8 = grid[r * cols + c - 1];
-        const p9 = grid[(r - 1) * cols + c - 1];
+    // Sub-iteration 2: check P2,P4,P8 and P2,P6,P8
+    if (zhangSuenPass(grid, cols, rows, 2)) changed = true;
+  }
+}
 
-        const B = neighborCount(p2, p3, p4, p5, p6, p7, p8, p9);
-        if (B < 2 || B > 6) continue;
+/**
+ * Check common Zhang-Suen conditions shared by both sub-iterations:
+ * B (neighbor count) must be in [2, 6] and A (transitions) must be 1.
+ */
+function zhangSuenCommonCheck(
+  p2: number,
+  p3: number,
+  p4: number,
+  p5: number,
+  p6: number,
+  p7: number,
+  p8: number,
+  p9: number,
+): boolean {
+  const B = neighborCount(p2, p3, p4, p5, p6, p7, p8, p9);
+  if (B < 2 || B > 6) return false;
+  return transitions(p2, p3, p4, p5, p6, p7, p8, p9) === 1;
+}
 
-        const A = transitions(p2, p3, p4, p5, p6, p7, p8, p9);
-        if (A !== 1) continue;
+/**
+ * Step-specific condition for Zhang-Suen sub-iteration 1:
+ * At least one of {P2,P4,P6} and at least one of {P4,P6,P8} must be background.
+ */
+function zhangSuenStep1Check(p2: number, p4: number, p6: number, p8: number): boolean {
+  if (p2 && p4 && p6) return false;
+  if (p4 && p6 && p8) return false;
+  return true;
+}
 
-        // At least one of P2, P4, P6 is background
-        if (p2 && p4 && p6) continue;
+/**
+ * Step-specific condition for Zhang-Suen sub-iteration 2:
+ * At least one of {P2,P4,P8} and at least one of {P2,P6,P8} must be background.
+ */
+function zhangSuenStep2Check(p2: number, p4: number, p6: number, p8: number): boolean {
+  if (p2 && p4 && p8) return false;
+  if (p2 && p6 && p8) return false;
+  return true;
+}
 
-        // At least one of P4, P6, P8 is background
-        if (p4 && p6 && p8) continue;
+/**
+ * Execute one sub-iteration pass of Zhang-Suen thinning.
+ * @param step 1 for the first sub-iteration, 2 for the second.
+ * @returns true if any pixels were removed.
+ */
+function zhangSuenPass(grid: Uint8Array, cols: number, rows: number, step: 1 | 2): boolean {
+  let changed = false;
 
-        grid[r * cols + c] = 2; // mark for removal
+  for (let r = 1; r < rows - 1; r++) {
+    for (let c = 1; c < cols - 1; c++) {
+      if (grid[r * cols + c] !== 1) continue;
+
+      const idx = r * cols;
+      const p2 = grid[(r - 1) * cols + c];
+      const p3 = grid[(r - 1) * cols + c + 1];
+      const p4 = grid[idx + c + 1];
+      const p5 = grid[(r + 1) * cols + c + 1];
+      const p6 = grid[(r + 1) * cols + c];
+      const p7 = grid[(r + 1) * cols + c - 1];
+      const p8 = grid[idx + c - 1];
+      const p9 = grid[(r - 1) * cols + c - 1];
+
+      if (
+        zhangSuenCommonCheck(p2, p3, p4, p5, p6, p7, p8, p9) &&
+        (step === 1 ? zhangSuenStep1Check(p2, p4, p6, p8) : zhangSuenStep2Check(p2, p4, p6, p8))
+      ) {
+        grid[idx + c] = 2;
         changed = true;
       }
-    }
-    // Remove marked pixels
-    for (let i = 0; i < grid.length; i++) {
-      if (grid[i] === 2) grid[i] = 0;
-    }
-
-    // --- Sub-iteration 2 ---
-    for (let r = 1; r < rows - 1; r++) {
-      for (let c = 1; c < cols - 1; c++) {
-        if (grid[r * cols + c] !== 1) continue;
-
-        const p2 = grid[(r - 1) * cols + c];
-        const p3 = grid[(r - 1) * cols + c + 1];
-        const p4 = grid[r * cols + c + 1];
-        const p5 = grid[(r + 1) * cols + c + 1];
-        const p6 = grid[(r + 1) * cols + c];
-        const p7 = grid[(r + 1) * cols + c - 1];
-        const p8 = grid[r * cols + c - 1];
-        const p9 = grid[(r - 1) * cols + c - 1];
-
-        const B = neighborCount(p2, p3, p4, p5, p6, p7, p8, p9);
-        if (B < 2 || B > 6) continue;
-
-        const A = transitions(p2, p3, p4, p5, p6, p7, p8, p9);
-        if (A !== 1) continue;
-
-        // At least one of P2, P4, P8 is background
-        if (p2 && p4 && p8) continue;
-
-        // At least one of P2, P6, P8 is background
-        if (p2 && p6 && p8) continue;
-
-        grid[r * cols + c] = 2;
-        changed = true;
-      }
-    }
-    // Remove marked pixels
-    for (let i = 0; i < grid.length; i++) {
-      if (grid[i] === 2) grid[i] = 0;
     }
   }
+
+  // Remove marked pixels
+  for (let i = 0; i < grid.length; i++) {
+    if (grid[i] === 2) grid[i] = 0;
+  }
+
+  return changed;
 }
 
 /** Count the number of non-zero neighbors (B in Zhang-Suen). */

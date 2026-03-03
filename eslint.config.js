@@ -30,7 +30,7 @@ export default [
         { selector: "enum", format: ["PascalCase"] },
         { selector: "enumMember", format: ["UPPER_CASE", "PascalCase"] },
         { selector: "function", format: ["camelCase", "PascalCase"] },
-        { selector: "method", format: ["camelCase"] },
+        { selector: "method", format: ["camelCase"], leadingUnderscore: "allow" },
         { selector: "variable", format: ["camelCase", "UPPER_CASE", "PascalCase"] },
         {
           selector: "parameter",

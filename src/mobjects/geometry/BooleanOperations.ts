@@ -226,10 +226,11 @@ function performBooleanOp(
         result = polygonClipping.xor(geomA, geomB);
         break;
     }
-  } catch {
+  } catch (err) {
     // If polygon-clipping throws (extremely degenerate input), fall back
     // to returning the subject polygon for union/difference, or empty for
     // intersection/xor.
+    console.warn(`BooleanOperations: ${operation} failed, returning fallback.`, err);
     if (operation === 'union' || operation === 'difference') {
       return [polyA];
     }

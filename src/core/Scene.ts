@@ -409,6 +409,7 @@ export class Scene {
       mobject.dispose();
     }
     this._mobjects.clear();
+    this._renderOrderCounter = 0;
 
     // Also remove any untracked Three.js objects (e.g., cross-fade targets
     // added directly by Transform animations)

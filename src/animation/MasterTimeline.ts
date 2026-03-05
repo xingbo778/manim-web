@@ -62,6 +62,25 @@ export class MasterTimeline extends Timeline {
   }
 
   /**
+   * Override update to restore opacity for mobjects whose introducing
+   * segment starts during this tick. seek() hides future mobjects by
+   * setting opacity=0; this restores them exactly when playback crosses
+   * their segment boundary (not every frame).
+   */
+  override update(dt: number): void {
+    const prevTime = this.getCurrentTime();
+    super.update(dt);
+    const newTime = this.getCurrentTime();
+
+    for (const [mobject, segIndex] of this._mobjectFirstSegment) {
+      const seg = this._segments[segIndex];
+      if (seg && prevTime < seg.startTime && newTime >= seg.startTime) {
+        mobject.opacity = 1;
+      }
+    }
+  }
+
+  /**
    * Override reset to use seek(0) so future mobjects are hidden.
    */
   override reset(): this {

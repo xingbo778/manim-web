@@ -723,6 +723,45 @@ describe('MasterTimeline', () => {
       expect(tl.getCurrentTime()).toBeCloseTo(2);
     });
 
+    it('restores opacity of mobjects when their segment starts during playback (GH-106)', () => {
+      // Reproduces the bug from PR #106:
+      // After seek(0), mobjects in later segments get opacity=0.
+      // During update() playback, their opacity is never restored
+      // because nothing sets it back to 1 when their segment begins.
+      const mob1 = new TestMobject();
+      const mob2 = new TestMobject();
+      const mob3 = new TestMobject();
+      const anim1 = new TestAnimation(mob1, { duration: 1 });
+      const anim2 = new TestAnimation(mob2, { duration: 1 });
+      const anim3 = new TestAnimation(mob3, { duration: 1 });
+
+      tl.addSegment([anim1]); // seg 0: 0-1
+      tl.addSegment([anim2]); // seg 1: 1-2
+      tl.addSegment([anim3]); // seg 2: 2-3
+
+      // Simulate what Player.sequence() does: seek(0) to show initial state
+      tl.seek(0);
+
+      // mob2 and mob3 should be hidden since their segments haven't started
+      expect(mob2.opacity).toBe(0);
+      expect(mob3.opacity).toBe(0);
+
+      // Now play forward past segment 1's start time
+      tl.play();
+      tl.update(1.5); // time is now 1.5, inside segment 1
+
+      // BUG: mob2.opacity is still 0 — it was never restored
+      // mob2's segment has started, so it should be visible
+      expect(mob2.opacity).toBeGreaterThan(0);
+
+      // mob3's segment hasn't started yet, should still be hidden
+      expect(mob3.opacity).toBe(0);
+
+      // Continue past segment 2's start
+      tl.update(1.0); // time is now 2.5, inside segment 2
+      expect(mob3.opacity).toBeGreaterThan(0);
+    });
+
     it('nextSegment and prevSegment navigate correctly', () => {
       const mob = new TestMobject();
       tl.addSegment([new TestAnimation(mob, { duration: 1 })]);

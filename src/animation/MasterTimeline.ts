@@ -27,6 +27,12 @@ export class MasterTimeline extends Timeline {
    * Used by seek() to hide mobjects that haven't been introduced yet.
    */
   private _mobjectFirstSegment: Map<Animation['mobject'], number> = new Map();
+  /**
+   * Saves each mobject's original opacity at addSegment() time,
+   * before any seek() hides it. Used to restore the correct opacity
+   * before animation begin() runs, preventing opacity corruption.
+   */
+  private _savedMobjectOpacities: Map<Animation['mobject'], number> = new Map();
 
   /**
    * Override seek to always reset ALL animations before re-applying.
@@ -44,6 +50,14 @@ export class MasterTimeline extends Timeline {
 
     // Clear started tracking so _updateAnimationsAtTime re-begins them
     this._startedAnimations.clear();
+
+    // Restore all mobjects to their original opacity before replaying.
+    // This ensures animation begin() captures the correct opacity,
+    // even if a previous begin() captured a value corrupted by hiding.
+    for (const [mobject, opacity] of this._savedMobjectOpacities) {
+      mobject.opacity = opacity;
+    }
+
     // Delegate to parent which re-applies animations at target time
     super.seek(time);
 
@@ -54,9 +68,7 @@ export class MasterTimeline extends Timeline {
     for (const [mobject, segIndex] of this._mobjectFirstSegment) {
       const seg = this._segments[segIndex];
       if (seg && time < seg.startTime) {
-        if (!this._animationControlsVisibility(mobject, segIndex)) {
-          mobject.opacity = 0;
-        }
+        mobject.opacity = 0;
       }
     }
 
@@ -71,15 +83,29 @@ export class MasterTimeline extends Timeline {
    */
   override update(dt: number): void {
     const prevTime = this.getCurrentTime();
+
+    // Restore original opacity for hidden future mobjects before super.update()
+    // so that animation begin() captures the correct value when the segment starts.
+    // Without this, Create animations using the opacity fallback path would capture
+    // opacity=0 (set by seek()) and compute 0*alpha=0 forever.
+    for (const [mobject, segIndex] of this._mobjectFirstSegment) {
+      const seg = this._segments[segIndex];
+      if (seg && prevTime < seg.startTime) {
+        const savedOpacity = this._savedMobjectOpacities.get(mobject);
+        if (savedOpacity !== undefined) {
+          mobject.opacity = savedOpacity;
+        }
+      }
+    }
+
     super.update(dt);
     const newTime = this.getCurrentTime();
 
+    // Re-hide mobjects whose introducing segment still hasn't started
     for (const [mobject, segIndex] of this._mobjectFirstSegment) {
       const seg = this._segments[segIndex];
-      if (seg && prevTime < seg.startTime && newTime >= seg.startTime) {
-        if (!this._animationControlsVisibility(mobject, segIndex)) {
-          mobject.opacity = 1;
-        }
+      if (seg && newTime < seg.startTime) {
+        mobject.opacity = 0;
       }
     }
   }
@@ -91,16 +117,6 @@ export class MasterTimeline extends Timeline {
     this.seek(0);
     this.pause();
     return this;
-  }
-
-  /**
-   * Check if any animation for the given mobject in the specified segment
-   * has controlsOwnVisibility set to true.
-   */
-  private _animationControlsVisibility(mobject: Animation['mobject'], segIndex: number): boolean {
-    const seg = this._segments[segIndex];
-    if (!seg) return false;
-    return seg.animations.some((a) => a.mobject === mobject && a.controlsOwnVisibility);
   }
 
   /**
@@ -122,10 +138,12 @@ export class MasterTimeline extends Timeline {
     };
     this._segments.push(segment);
 
-    // Track which segment first introduces each mobject
+    // Track which segment first introduces each mobject and save its
+    // original opacity before any seek() hides it.
     for (const anim of animations) {
       if (!this._mobjectFirstSegment.has(anim.mobject)) {
         this._mobjectFirstSegment.set(anim.mobject, segmentIndex);
+        this._savedMobjectOpacities.set(anim.mobject, anim.mobject.opacity);
       }
     }
 

@@ -2509,7 +2509,6 @@ import { MasterTimeline } from '../MasterTimeline';
 
 describe('Create with MasterTimeline (opacity fallback path)', () => {
   it('Create(Dot) opacity fades from 0 to 1 in MasterTimeline', () => {
-    // A plain Mobject has no Line2 children, so Create uses the opacity fallback
     const dot = new Mobject();
     dot.opacity = 1;
 
@@ -2517,17 +2516,13 @@ describe('Create with MasterTimeline (opacity fallback path)', () => {
     const tl = new MasterTimeline();
     tl.addSegment([anim]);
 
-    // seek(0) should NOT corrupt the mobject's opacity for the animation
+    // seek(0) hides dot (opacity=0) since its segment starts at t=0
+    // but MasterTimeline saves the original opacity (1) for later restoration
     tl.seek(0);
-    // After seek(0), the animation runs begin() which sets opacity to 0
-    // MasterTimeline should NOT override this since the animation controls visibility
-    // The key invariant: the animation's _savedOpacities captured the real opacity (1)
 
     // Play forward to 50%
     tl.play();
     tl.update(0.5);
-    // At alpha=0.5, the opacity should be ~0.5 (with smooth rate function it varies,
-    // but with linear it should be exactly 0.5)
     expect(dot.opacity).toBeCloseTo(0.5, 1);
 
     // Play to end
@@ -2535,7 +2530,7 @@ describe('Create with MasterTimeline (opacity fallback path)', () => {
     expect(dot.opacity).toBeCloseTo(1, 1);
   });
 
-  it('sequential Create animations work correctly', () => {
+  it('sequential Create animations: dot2 hidden until its segment', () => {
     const dot1 = new Mobject();
     dot1.opacity = 1;
     const dot2 = new Mobject();
@@ -2548,19 +2543,21 @@ describe('Create with MasterTimeline (opacity fallback path)', () => {
     tl.addSegment([anim1]); // segment 0: t=0..1
     tl.addSegment([anim2]); // segment 1: t=1..2
 
-    // seek(0): dot2 is a future mobject - but Create controls its own visibility
-    // so MasterTimeline should NOT hide it (the animation will handle opacity itself)
+    // seek(0): dot2 is a future mobject, should be hidden
     tl.seek(0);
+    expect(dot2.opacity).toBe(0);
 
     // Play through first animation
     tl.play();
     tl.update(0.5);
     expect(dot1.opacity).toBeCloseTo(0.5, 1);
+    // dot2 should still be hidden during first segment
+    expect(dot2.opacity).toBe(0);
 
     tl.update(0.5);
     expect(dot1.opacity).toBeCloseTo(1, 1);
 
-    // Play through second animation
+    // Play through second animation — dot2's begin() should capture opacity=1
     tl.update(0.5);
     expect(dot2.opacity).toBeCloseTo(0.5, 1);
 
@@ -2570,7 +2567,7 @@ describe('Create with MasterTimeline (opacity fallback path)', () => {
 
   it('seek(0) does not corrupt saved opacity for opacity-based Create', () => {
     const dot = new Mobject();
-    dot.opacity = 0.8; // custom opacity
+    dot.opacity = 0.8;
 
     const anim = new Create(dot, { duration: 1, rateFunc: linear });
     const tl = new MasterTimeline();
@@ -2583,23 +2580,9 @@ describe('Create with MasterTimeline (opacity fallback path)', () => {
     // Seek back to 0
     tl.seek(0);
 
-    // Play forward again - the opacity should scale correctly from the original 0.8
+    // Play forward again — the saved opacity (0.8) should be restored
     tl.play();
     tl.update(1.0);
     expect(dot.opacity).toBeCloseTo(0.8, 1);
-  });
-
-  it('controlsOwnVisibility is true for Create before begin()', () => {
-    const dot = new Mobject();
-    const anim = new Create(dot);
-    // Flag is set in constructor so MasterTimeline can check it before begin()
-    expect(anim.controlsOwnVisibility).toBe(true);
-  });
-
-  it('controlsOwnVisibility is true after begin() for opacity fallback', () => {
-    const dot = new Mobject();
-    const anim = new Create(dot);
-    anim.begin();
-    expect(anim.controlsOwnVisibility).toBe(true);
   });
 });

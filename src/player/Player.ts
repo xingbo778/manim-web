@@ -66,6 +66,12 @@ class RecordingScene {
       }
     }
 
+    // Record segment BEFORE begin() so addSegment captures the correct
+    // pre-animation opacity. begin() may modify mobject opacity (e.g.
+    // Create's opacity fallback sets it to 0), which would corrupt the
+    // saved value used for visibility restoration during seek/playback.
+    this._masterTimeline.addSegment(animations);
+
     // Initialize top-level animations
     for (const anim of animations) {
       anim.begin();
@@ -77,9 +83,6 @@ class RecordingScene {
         this._realScene.add(anim.mobject);
       }
     }
-
-    // Record segment
-    this._masterTimeline.addSegment(animations);
   }
 
   /** Proxy for scene.wait() — records a wait segment. */

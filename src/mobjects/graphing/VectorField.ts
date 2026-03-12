@@ -67,7 +67,7 @@ export interface StreamLinesOptions extends VectorFieldBaseOptions {
   startPoints?: [number, number][];
   /** Maximum length of each streamline. Default: 10 */
   maxLineLength?: number;
-  /** Integration step size. Default: 0.1 */
+  /** Integration step size. Default: 0.05 */
   stepSize?: number;
   /** Minimum step count before stopping. Default: 3 */
   minSteps?: number;
@@ -77,20 +77,43 @@ export interface StreamLinesOptions extends VectorFieldBaseOptions {
   showArrows?: boolean;
   /** Spacing between arrows on streamlines. Default: 1 */
   arrowSpacing?: number;
+  /** Total virtual time for the simulation. Default: 3 */
+  virtualTime?: number;
+  /** Maximum anchor points per line (downsamples if exceeded). Default: 100 */
+  maxAnchorsPerLine?: number;
+  /** Noise added to grid start points. Default: yRange step / 2 */
+  noiseFactor?: number;
+  /** Padding beyond range boundaries for line termination. Default: 3 */
+  padding?: number;
+  /** Number of lines per grid point. Default: 1 */
+  nRepeats?: number;
 }
 
 /**
- * Default color function that maps magnitude to a blue-to-red gradient
+ * Python manim's SCALAR_FIELD_DEFAULT_COLORS: BLUE_E → GREEN → YELLOW → RED
+ */
+const SCALAR_FIELD_COLORS: [number, number, number][] = [
+  [0x23 / 255, 0x6b / 255, 0x8e / 255], // BLUE_E  #236B8E
+  [0x83 / 255, 0xc1 / 255, 0x67 / 255], // GREEN   #83C167
+  [0xff / 255, 0xff / 255, 0x00 / 255], // YELLOW  #FFFF00
+  [0xfc / 255, 0x62 / 255, 0x55 / 255], // RED     #FC6255
+];
+
+/**
+ * Default color function that maps magnitude to a 4-color gradient
+ * matching Python manim's scalar field coloring over [0, 2].
  */
 function defaultColorFunction(magnitude: number): string {
-  // Clamp magnitude to [0, 1] range for color mapping
-  const t = Math.min(Math.max(magnitude / 3, 0), 1);
-
-  // Blue (#58C4DD) to Yellow (#FFFF00) to Red (#FF0000)
-  const r = Math.round(88 + (255 - 88) * t);
-  const g = Math.round(196 - 196 * t * t);
-  const b = Math.round(221 * (1 - t));
-
+  const t = Math.min(Math.max(magnitude / 2, 0), 1);
+  const n = SCALAR_FIELD_COLORS.length;
+  const idx = t * (n - 1);
+  const lo = Math.min(Math.floor(idx), n - 2);
+  const frac = idx - lo;
+  const c0 = SCALAR_FIELD_COLORS[lo];
+  const c1 = SCALAR_FIELD_COLORS[lo + 1];
+  const r = Math.round((c0[0] + (c1[0] - c0[0]) * frac) * 255);
+  const g = Math.round((c0[1] + (c1[1] - c0[1]) * frac) * 255);
+  const b = Math.round((c0[2] + (c1[2] - c0[2]) * frac) * 255);
   return `rgb(${r}, ${g}, ${b})`;
 }
 
@@ -486,6 +509,108 @@ export interface ContinuousMotionOptions {
   rateFunc?: (t: number) => number;
 }
 
+/** Simple seeded PRNG (mulberry32) for reproducible noise */
+function seededRandom(seed: number): () => number {
+  return () => {
+    seed |= 0;
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** Lerp between two 3D points */
+function lerpPt(a: number[], b: number[], t: number): number[] {
+  return [
+    a[0] + (b[0] - a[0]) * t,
+    a[1] + (b[1] - a[1]) * t,
+    (a[2] || 0) + ((b[2] || 0) - (a[2] || 0)) * t,
+  ];
+}
+
+/** De Casteljau split of a cubic Bezier at parameter t */
+function splitBezierAt(
+  p0: number[],
+  p1: number[],
+  p2: number[],
+  p3: number[],
+  t: number,
+): { left: number[][]; right: number[][] } {
+  const q0 = lerpPt(p0, p1, t);
+  const q1 = lerpPt(p1, p2, t);
+  const q2 = lerpPt(p2, p3, t);
+  const r0 = lerpPt(q0, q1, t);
+  const r1 = lerpPt(q1, q2, t);
+  const s0 = lerpPt(r0, r1, t);
+  return { left: [p0, q0, r0, s0], right: [s0, r1, q2, p3] };
+}
+
+/**
+ * Extract a subsection of cubic Bezier control points between parametric
+ * values `lower` and `upper` (both 0-1).  Equivalent to Python manim's
+ * `pointwise_become_partial`.
+ */
+function getPartialBezierPoints(allPoints: number[][], lower: number, upper: number): number[][] {
+  if (allPoints.length < 4) return [];
+  const nCurves = (allPoints.length - 1) / 3;
+  if (nCurves < 1 || lower >= upper) return [];
+
+  lower = Math.max(0, Math.min(1, lower));
+  upper = Math.max(0, Math.min(1, upper));
+
+  const lowerIdx = lower * nCurves;
+  const upperIdx = upper * nCurves;
+  let lowerCurve = Math.floor(lowerIdx);
+  let upperCurve = Math.floor(upperIdx);
+  let lowerT = lowerIdx - lowerCurve;
+  let upperT = upperIdx - upperCurve;
+
+  if (upperCurve >= nCurves) {
+    upperCurve = Math.floor(nCurves) - 1;
+    upperT = 1.0;
+  }
+  if (lowerCurve >= nCurves) {
+    lowerCurve = Math.floor(nCurves) - 1;
+    lowerT = 1.0;
+  }
+
+  const result: number[][] = [];
+
+  for (let i = lowerCurve; i <= upperCurve; i++) {
+    const base = i * 3;
+    let cp0 = allPoints[base];
+    let cp1 = allPoints[base + 1];
+    let cp2 = allPoints[base + 2];
+    let cp3 = allPoints[base + 3];
+    if (!cp0 || !cp1 || !cp2 || !cp3) break;
+
+    const startT = i === lowerCurve ? lowerT : 0;
+    let endT = i === upperCurve ? upperT : 1;
+
+    if (startT > 0) {
+      const s = splitBezierAt(cp0, cp1, cp2, cp3, startT);
+      cp0 = s.right[0];
+      cp1 = s.right[1];
+      cp2 = s.right[2];
+      cp3 = s.right[3];
+      if (startT < 1) endT = (endT - startT) / (1 - startT);
+    }
+    if (endT < 1) {
+      const s = splitBezierAt(cp0, cp1, cp2, cp3, endT);
+      cp0 = s.left[0];
+      cp1 = s.left[1];
+      cp2 = s.left[2];
+      cp3 = s.left[3];
+    }
+
+    if (result.length === 0) result.push(cp0);
+    result.push(cp1, cp2, cp3);
+  }
+
+  return result;
+}
+
 /**
  * StreamLines - Streamline visualization for vector fields
  *
@@ -524,6 +649,12 @@ export class StreamLines extends VectorField {
   protected _variableWidth: boolean;
   protected _showArrows: boolean;
   protected _arrowSpacing: number;
+  private _virtualTime: number;
+  private _maxAnchorsPerLine: number;
+  private _noiseFactor: number;
+  private _padding: number;
+  private _nRepeats: number;
+  private _lineDurations: number[] = [];
 
   /** Raw integrated points for each streamline (populated during generation) */
   private _streamlineData: { x: number; y: number; vx: number; vy: number }[][] = [];
@@ -533,19 +664,34 @@ export class StreamLines extends VectorField {
   private _animationUpdater: UpdaterFunction | null = null;
   /** Phase for each streamline (0-1), used during continuous motion */
   private _phases: number[] = [];
+  /** Saved original bezier points per streamline for restoration after animation */
+  private _savedOriginalPoints: number[][][] = [];
+
+  /** Total virtual time of the simulation (matches Python manim) */
+  get virtualTime(): number {
+    return this._virtualTime;
+  }
 
   constructor(options: StreamLinesOptions) {
-    super(options);
+    super({
+      xRange: [-8, 8, 0.5] as [number, number, number],
+      yRange: [-4, 4, 0.5] as [number, number, number],
+      ...options,
+    });
 
     const {
       numLines = 15,
       startPoints,
       maxLineLength = 10,
-      stepSize = 0.1,
+      stepSize = 0.05,
       minSteps = 3,
       variableWidth = false,
       showArrows = false,
       arrowSpacing = 1,
+      virtualTime = 3,
+      maxAnchorsPerLine = 100,
+      padding = 3,
+      nRepeats = 1,
     } = options;
 
     this._numLines = numLines;
@@ -556,38 +702,45 @@ export class StreamLines extends VectorField {
     this._variableWidth = variableWidth;
     this._showArrows = showArrows;
     this._arrowSpacing = arrowSpacing;
+    this._virtualTime = virtualTime;
+    this._maxAnchorsPerLine = maxAnchorsPerLine;
+    this._noiseFactor = options.noiseFactor ?? this._yRange[2] / 2;
+    this._padding = padding;
+    this._nRepeats = nRepeats;
 
     this._generateStreamlines();
   }
 
   /**
-   * Generate starting points for streamlines if not provided
+   * Generate starting points for streamlines.
+   * Uses grid-based generation with noise (matching Python manim) when
+   * startPoints is not explicitly set.
    */
   private _getStartPoints(): [number, number][] {
     if (this._startPoints) {
       return this._startPoints;
     }
 
-    // Generate evenly distributed start points
+    const [xMin, xMax, xStep] = this._xRange;
+    const [yMin, yMax, yStep] = this._yRange;
     const points: [number, number][] = [];
-    const [xMin, xMax] = this._xRange;
-    const [yMin, yMax] = this._yRange;
+    const rng = seededRandom(0);
+    const nf = this._noiseFactor;
 
-    // Use a quasi-random distribution
-    const phi = (1 + Math.sqrt(5)) / 2; // Golden ratio
-    for (let i = 0; i < this._numLines; i++) {
-      const t = i / this._numLines;
-      // Use golden ratio spiral for better distribution
-      const x = xMin + (xMax - xMin) * ((t * phi) % 1);
-      const y = yMin + (yMax - yMin) * ((t * phi * phi) % 1);
-      points.push([x, y]);
+    for (let x = xMin; x <= xMax + xStep * 0.01; x += xStep) {
+      for (let y = yMin; y <= yMax + yStep * 0.01; y += yStep) {
+        for (let r = 0; r < this._nRepeats; r++) {
+          points.push([x + nf * (rng() - 0.5), y + nf * (rng() - 0.5)]);
+        }
+      }
     }
 
     return points;
   }
 
   /**
-   * Integrate a streamline from a starting point using RK4
+   * Integrate a streamline from a starting point using simple Euler integration.
+   * Matches Python manim behavior: magnitude directly scales step size.
    * @param startX - Starting X coordinate
    * @param startY - Starting Y coordinate
    * @returns Array of points along the streamline
@@ -595,85 +748,45 @@ export class StreamLines extends VectorField {
   private _integrateStreamline(
     startX: number,
     startY: number,
-  ): { x: number; y: number; vx: number; vy: number }[] {
-    const points: { x: number; y: number; vx: number; vy: number }[] = [];
+  ): { points: { x: number; y: number; vx: number; vy: number }[]; lastStep: number } {
     const [xMin, xMax] = this._xRange;
     const [yMin, yMax] = this._yRange;
+    const maxSteps = Math.ceil(this._virtualTime / this._stepSize) + 1;
+    const dt = this._stepSize;
 
+    const points: { x: number; y: number; vx: number; vy: number }[] = [];
     let x = startX;
     let y = startY;
-    let totalLength = 0;
-    let steps = 0;
+    let lastStep = 0;
 
-    // Helper for RK4 integration
-    const rk4Step = (
-      x: number,
-      y: number,
-      h: number,
-    ): { x: number; y: number; vx: number; vy: number } | null => {
-      const [k1x, k1y] = this._func(x, y);
-      const mag1 = Math.sqrt(k1x * k1x + k1y * k1y);
-      if (mag1 < 1e-10) return null;
-
-      const [k2x, k2y] = this._func(x + (0.5 * h * k1x) / mag1, y + (0.5 * h * k1y) / mag1);
-      const mag2 = Math.sqrt(k2x * k2x + k2y * k2y);
-      if (mag2 < 1e-10) return null;
-
-      const [k3x, k3y] = this._func(x + (0.5 * h * k2x) / mag2, y + (0.5 * h * k2y) / mag2);
-      const mag3 = Math.sqrt(k3x * k3x + k3y * k3y);
-      if (mag3 < 1e-10) return null;
-
-      const [k4x, k4y] = this._func(x + (h * k3x) / mag3, y + (h * k3y) / mag3);
-      const mag4 = Math.sqrt(k4x * k4x + k4y * k4y);
-      if (mag4 < 1e-10) return null;
-
-      // Weighted average of derivatives (normalized)
-      const dx = (h * (k1x / mag1 + (2 * k2x) / mag2 + (2 * k3x) / mag3 + k4x / mag4)) / 6;
-      const dy = (h * (k1y / mag1 + (2 * k2y) / mag2 + (2 * k3y) / mag3 + k4y / mag4)) / 6;
-
-      return {
-        x: x + dx,
-        y: y + dy,
-        vx: k1x,
-        vy: k1y,
-      };
-    };
-
-    // Initial point
     const [initVx, initVy] = this._func(x, y);
     points.push({ x, y, vx: initVx, vy: initVy });
 
-    // Integrate forward
-    while (totalLength < this._maxLineLength) {
-      const result = rk4Step(x, y, this._stepSize * this._lengthScale);
-      if (!result) break;
+    for (let step = 0; step < maxSteps; step++) {
+      lastStep = step;
+      const [vx, vy] = this._func(x, y);
 
-      const { x: newX, y: newY, vx, vy } = result;
+      // Simple Euler integration - magnitude directly scales step (matches Python)
+      const newX = x + dt * vx;
+      const newY = y + dt * vy;
 
-      // Check bounds
-      if (newX < xMin || newX > xMax || newY < yMin || newY > yMax) {
-        // Add boundary point and stop
-        const clampedX = Math.max(xMin, Math.min(xMax, newX));
-        const clampedY = Math.max(yMin, Math.min(yMax, newY));
-        points.push({ x: clampedX, y: clampedY, vx, vy });
+      // Check bounds with padding
+      if (
+        newX < xMin - this._padding ||
+        newX > xMax + this._padding ||
+        newY < yMin - this._padding ||
+        newY > yMax + this._padding
+      ) {
         break;
       }
 
-      // Update step length
-      const stepLen = Math.sqrt((newX - x) ** 2 + (newY - y) ** 2);
-      totalLength += stepLen;
-      steps++;
-
       x = newX;
       y = newY;
-      points.push({ x, y, vx, vy });
-
-      // Safety limit
-      if (steps > 1000) break;
+      const [newVx, newVy] = this._func(x, y);
+      points.push({ x, y, vx: newVx, vy: newVy });
     }
 
-    // Only return if we have enough steps
-    return steps >= this._minSteps ? points : [];
+    return { points, lastStep };
   }
 
   /**
@@ -704,6 +817,23 @@ export class StreamLines extends VectorField {
   }
 
   /**
+   * Downsample an array of points to a maximum count, preserving first and last
+   */
+  private _downsample<T>(points: T[], maxPoints: number): T[] {
+    if (points.length <= maxPoints) return points;
+
+    const result: T[] = [points[0]];
+    const step = (points.length - 1) / (maxPoints - 1);
+
+    for (let i = 1; i < maxPoints - 1; i++) {
+      result.push(points[Math.round(i * step)]);
+    }
+    result.push(points[points.length - 1]);
+
+    return result;
+  }
+
+  /**
    * Generate all streamlines
    */
   private _generateStreamlines(): void {
@@ -713,18 +843,28 @@ export class StreamLines extends VectorField {
     }
     this._streamlineData = [];
     this._streamlineVMobjects = [];
+    this._lineDurations = [];
 
     const startPoints = this._getStartPoints();
 
     for (const [startX, startY] of startPoints) {
-      const linePoints = this._integrateStreamline(startX, startY);
+      const result = this._integrateStreamline(startX, startY);
+      let linePoints = result.points;
 
       if (linePoints.length < 2) {
         continue;
       }
 
+      // Store duration (step_count * dt) matching Python
+      this._lineDurations.push(result.lastStep * this._stepSize);
+
       // Store the raw integrated data for animation use
       this._streamlineData.push(linePoints);
+
+      // Downsample to maxAnchorsPerLine
+      if (linePoints.length > this._maxAnchorsPerLine) {
+        linePoints = this._downsample(linePoints, this._maxAnchorsPerLine);
+      }
 
       // Create streamline as VMobject with Bezier curves
       const streamline = new VMobject();
@@ -884,14 +1024,15 @@ export class StreamLines extends VectorField {
   /**
    * Start continuous flowing animation on the streamlines.
    *
-   * Each streamline gets a sliding visible window that advances each frame,
-   * creating the illusion of particles flowing along the field.
-   * Lines fade in at the leading edge and fade out at the trailing edge.
+   * Matches Python manim's AnimatedStreamLines / ShowPassingFlash behavior:
+   * each streamline shows only a `timeWidth` fraction of its path, sliding
+   * along each frame as a bright streak that fades in at the front and out
+   * at the back.
    *
    * @param options - Animation configuration
    */
   startAnimation(options: ContinuousMotionOptions = {}): this {
-    const { warmUp = true, flowSpeed = 1, timeWidth = 0.3, rateFunc = (t: number) => t } = options;
+    const { warmUp = true, flowSpeed = 1, timeWidth = 0.3 } = options;
 
     // Stop any existing animation first
     if (this._animationUpdater) {
@@ -901,98 +1042,76 @@ export class StreamLines extends VectorField {
     const numLines = this._streamlineData.length;
     if (numLines === 0) return this;
 
-    // Initialize phases
+    // Save each streamline's original bezier points so endAnimation can restore them
+    this._savedOriginalPoints = [];
+    for (let i = 0; i < numLines; i++) {
+      const vmob = this._streamlineVMobjects[i];
+      if (vmob) {
+        this._savedOriginalPoints.push(vmob.getPoints());
+      } else {
+        this._savedOriginalPoints.push([]);
+      }
+    }
+
+    // Use stored line durations and virtualTime
+    const runTimes: number[] = this._lineDurations.map((d) => d / Math.max(flowSpeed, 1e-6));
+    const virtualTime = this._virtualTime;
+
+    // Initialize per-line time (seconds). Matches Python manim:
+    //   line.time = random.random() * virtual_time
+    //   if warm_up: line.time *= -1
+    // When warmUp=True, time starts negative so lines are initially invisible
+    // and gradually appear. When warmUp=False, time starts positive (random phase).
     this._phases = new Array(numLines);
     for (let i = 0; i < numLines; i++) {
-      this._phases[i] = warmUp ? Math.random() : 0;
+      const randTime = Math.random() * virtualTime;
+      this._phases[i] = warmUp ? -randTime : randTime;
     }
 
-    // Compute total arc lengths for each streamline (used to normalize speed)
-    const arcLengths: number[] = [];
-    for (const linePoints of this._streamlineData) {
-      let len = 0;
-      for (let i = 1; i < linePoints.length; i++) {
-        const dx = linePoints[i].x - linePoints[i - 1].x;
-        const dy = linePoints[i].y - linePoints[i - 1].y;
-        len += Math.sqrt(dx * dx + dy * dy);
-      }
-      arcLengths.push(Math.max(len, 1e-6));
-    }
-
-    // Create the updater
+    // Create the updater – mirrors Python manim's updater logic exactly:
+    //   line.time += dt * flow_speed
+    //   if line.time >= virtual_time: line.time -= virtual_time
+    //   alpha = clip(line.time / line.anim.run_time, 0, 1)
+    //   line.anim.interpolate(alpha)  # ShowPassingFlash
     this._animationUpdater = (_mob: Mobject, dt: number) => {
       for (let i = 0; i < numLines; i++) {
-        const linePoints = this._streamlineData[i];
         const vmob = this._streamlineVMobjects[i];
-        if (!linePoints || !vmob || linePoints.length < 2) continue;
+        const origPoints = this._savedOriginalPoints[i];
+        if (!vmob || !origPoints || origPoints.length < 4) continue;
 
-        // Advance phase; normalize by arc length so speed is consistent
-        this._phases[i] = (this._phases[i] + (flowSpeed * dt) / arcLengths[i]) % 1.0;
-        const phase = this._phases[i];
+        const runTime = runTimes[i];
 
-        // Determine the visible window [windowStart, windowEnd] in 0..1 parameter space
-        const windowStart = phase;
-        const windowEnd = phase + timeWidth;
-
-        const n = linePoints.length;
-
-        // Collect the visible subset of points, handling wrap-around
-        const visiblePoints: { x: number; y: number; vx: number; vy: number }[] = [];
-        const opacities: number[] = [];
-
-        for (let j = 0; j < n; j++) {
-          const t = j / (n - 1); // 0..1 parameter along the streamline
-
-          // Check if this point is within the window (possibly wrapping)
-          let inWindow = false;
-          let windowPos = 0; // position within the window (0..1)
-
-          if (windowEnd <= 1.0) {
-            // No wrap-around
-            if (t >= windowStart && t <= windowEnd) {
-              inWindow = true;
-              windowPos = (t - windowStart) / timeWidth;
-            }
-          } else {
-            // Window wraps around
-            if (t >= windowStart) {
-              inWindow = true;
-              windowPos = (t - windowStart) / timeWidth;
-            } else if (t <= windowEnd - 1.0) {
-              inWindow = true;
-              windowPos = (t + 1.0 - windowStart) / timeWidth;
-            }
-          }
-
-          if (inWindow) {
-            visiblePoints.push(linePoints[j]);
-            // Apply rate function for opacity: ramp up at start, ramp down at end
-            // windowPos goes 0..1 through the visible window
-            // Create a tent: opacity = rateFunc(2*windowPos) for first half,
-            // rateFunc(2*(1-windowPos)) for second half
-            let opacity: number;
-            if (windowPos <= 0.5) {
-              opacity = rateFunc(2 * windowPos);
-            } else {
-              opacity = rateFunc(2 * (1 - windowPos));
-            }
-            opacities.push(opacity);
-          }
+        // Advance time (matches Python: line.time += dt * flow_speed)
+        this._phases[i] += dt * flowSpeed;
+        if (this._phases[i] >= virtualTime) {
+          this._phases[i] -= virtualTime;
         }
 
-        if (visiblePoints.length < 2) {
-          // Not enough visible points; hide the streamline
+        // Compute alpha, clamped to [0, 1]
+        const alpha = Math.max(0, Math.min(this._phases[i] / runTime, 1));
+
+        // ShowPassingFlash._get_bounds
+        let upper = alpha * (1 + timeWidth);
+        let lower = upper - timeWidth;
+        upper = Math.min(upper, 1);
+        lower = Math.max(lower, 0);
+
+        if (upper <= lower || alpha <= 0) {
           vmob.setOpacity(0);
+          vmob._markDirty();
           continue;
         }
 
-        // Compute average opacity for the visible window
-        const avgOpacity = opacities.reduce((a, b) => a + b, 0) / opacities.length;
+        // Use pointwise_become_partial equivalent
+        const partialPoints = getPartialBezierPoints(origPoints, lower, upper);
+        if (partialPoints.length < 4) {
+          vmob.setOpacity(0);
+          vmob._markDirty();
+          continue;
+        }
 
-        // Rebuild the VMobject with only the visible points
-        const bezierPoints = this._pointsToBezier(visiblePoints);
-        vmob.setPoints3D(bezierPoints);
-        vmob.setOpacity(this._opacity * avgOpacity);
+        vmob.setPoints3D(partialPoints);
+        vmob.setOpacity(this._opacity);
         vmob._markDirty();
       }
     };
@@ -1003,7 +1122,8 @@ export class StreamLines extends VectorField {
 
   /**
    * Stop the continuous flowing animation.
-   * Removes the updater and restores all streamlines to full visibility.
+   * Removes the updater and restores all streamlines to their full original
+   * bezier points and opacity.
    */
   endAnimation(): this {
     if (this._animationUpdater) {
@@ -1011,18 +1131,27 @@ export class StreamLines extends VectorField {
       this._animationUpdater = null;
     }
 
-    // Restore full streamlines from stored data
-    for (let i = 0; i < this._streamlineData.length; i++) {
-      const linePoints = this._streamlineData[i];
+    // Restore each streamline from saved original bezier points
+    for (let i = 0; i < this._streamlineVMobjects.length; i++) {
       const vmob = this._streamlineVMobjects[i];
-      if (!linePoints || !vmob || linePoints.length < 2) continue;
+      if (!vmob) continue;
 
-      const bezierPoints = this._pointsToBezier(linePoints);
-      vmob.setPoints3D(bezierPoints);
+      if (this._savedOriginalPoints[i] && this._savedOriginalPoints[i].length > 0) {
+        vmob.setPoints3D(this._savedOriginalPoints[i]);
+      } else {
+        // Fallback: recompute from integrated data
+        const linePoints = this._streamlineData[i];
+        if (linePoints && linePoints.length >= 2) {
+          const bezierPoints = this._pointsToBezier(linePoints);
+          vmob.setPoints3D(bezierPoints);
+        }
+      }
+
       vmob.setOpacity(this._opacity);
       vmob._markDirty();
     }
 
+    this._savedOriginalPoints = [];
     this._phases = [];
     return this;
   }
@@ -1049,6 +1178,11 @@ export class StreamLines extends VectorField {
       variableWidth: this._variableWidth,
       showArrows: this._showArrows,
       arrowSpacing: this._arrowSpacing,
+      virtualTime: this._virtualTime,
+      maxAnchorsPerLine: this._maxAnchorsPerLine,
+      noiseFactor: this._noiseFactor,
+      padding: this._padding,
+      nRepeats: this._nRepeats,
     });
   }
 }

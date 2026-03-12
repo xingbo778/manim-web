@@ -3,43 +3,24 @@ import React from 'react';
 import ManimExample from '../ManimExample';
 
 async function animate(scene: any) {
-  const { NumberPlane, StreamLines, BLACK } = await import('manim-web');
+  const { StreamLines } = await import('manim-web');
 
-  const plane = new NumberPlane({
-    xRange: [-7, 7, 1],
-    yRange: [-4, 4, 1],
-    backgroundLineStyle: {
-      color: '#333355',
-      strokeWidth: 0.5,
-      opacity: 0.3,
-    },
-  });
-  scene.add(plane);
-
+  // Matches Python manim ContinuousMotion example exactly:
+  // func = lambda pos: np.sin(pos[0] / 2) * UR + np.cos(pos[1] / 2) * LEFT
+  // UR = [1, 1, 0], LEFT = [-1, 0, 0]
   const streamLines = new StreamLines({
-    func: (x, y) => [
-      Math.sin(x / 2) + Math.cos(y / 2) * 0.5,
-      Math.cos(x / 2) * 0.5 - Math.sin(y / 2),
-    ],
-    xRange: [-6, 6, 0.5],
-    yRange: [-3.5, 3.5, 0.5],
-    numLines: 25,
+    func: (x, y) => [Math.sin(x / 2) - Math.cos(y / 2), Math.sin(x / 2)],
     strokeWidth: 3,
-    maxLineLength: 12,
-    stepSize: 0.08,
-    opacity: 0.9,
+    maxAnchorsPerLine: 30,
   });
   scene.add(streamLines);
 
   streamLines.startAnimation({
-    warmUp: true,
+    warmUp: false,
     flowSpeed: 1.5,
-    timeWidth: 0.3,
   });
 
-  await scene.wait(10);
-
-  streamLines.endAnimation();
+  await scene.wait(streamLines.virtualTime / 1.5);
 }
 
 export default function StreamLinesContinuousMotionExample() {

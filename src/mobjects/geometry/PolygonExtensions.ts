@@ -97,12 +97,16 @@ export class RoundedRectangle extends VMobject {
       points.push([...p1]);
     };
 
-    // Helper to add a 90-degree arc at a corner
+    // Helper to add a clockwise 90-degree arc at a corner.
     // arcCenter: center of the arc circle
-    // startAngle: starting angle in radians
+    // startAngle: starting angle (radians) of the arc on the circle
+    //
+    // The arc sweeps clockwise: theta2 = startAngle - PI/2.
+    // Clockwise tangent at angle θ is (sin θ, -cos θ), so the cubic Bezier
+    // control points correctly approximate the quarter-circle arc.
     const addCornerArc = (arcCenterX: number, arcCenterY: number, startAngle: number) => {
       const theta1 = startAngle;
-      const theta2 = startAngle + Math.PI / 2;
+      const theta2 = startAngle - Math.PI / 2; // clockwise sweep
 
       // Start point
       const x0 = arcCenterX + r * Math.cos(theta1);
@@ -112,14 +116,14 @@ export class RoundedRectangle extends VMobject {
       const x3 = arcCenterX + r * Math.cos(theta2);
       const y3 = arcCenterY + r * Math.sin(theta2);
 
-      // Control points using kappa
-      const dx1 = -Math.sin(theta1);
-      const dy1 = Math.cos(theta1);
+      // Control points using kappa with the clockwise tangent direction (sin θ, -cos θ)
+      const dx1 = Math.sin(theta1);
+      const dy1 = -Math.cos(theta1);
       const x1 = x0 + kappa * r * dx1;
       const y1 = y0 + kappa * r * dy1;
 
-      const dx2 = -Math.sin(theta2);
-      const dy2 = Math.cos(theta2);
+      const dx2 = Math.sin(theta2);
+      const dy2 = -Math.cos(theta2);
       const x2 = x3 - kappa * r * dx2;
       const y2 = y3 - kappa * r * dy2;
 

@@ -22,7 +22,9 @@ export type GrowArrowOptions = AnimationOptions;
 export class GrowArrow extends Animation {
   private _targetScale: THREE.Vector3 = new THREE.Vector3();
   private _startPoint: Vector3Tuple = [0, 0, 0];
-  private _endPoint: Vector3Tuple = [0, 0, 0];
+  // The arrow's position before begin() — restored by finish() so the
+  // rendered bounds are not double-shifted by the world-space geometry offset.
+  private _initialPosition: THREE.Vector3 = new THREE.Vector3();
 
   constructor(mobject: Arrow, options: GrowArrowOptions = {}) {
     super(mobject, options);
@@ -33,15 +35,15 @@ export class GrowArrow extends Animation {
 
     const arrow = this.mobject as Arrow;
 
-    // Store the target state
+    // Store the target state before modifying anything
     this._targetScale.copy(arrow.scaleVector);
     this._startPoint = arrow.getStart();
-    this._endPoint = arrow.getEnd();
+    this._initialPosition.copy(arrow.position);
 
     // Start at scale 0 (from the start point)
     arrow.scaleVector.set(0.001, 0.001, 0.001); // Use small value to avoid division issues
 
-    // Position at start point
+    // Position at start point so the tiny arrow appears at the right location
     const start = this._startPoint;
     arrow.position.set(start[0], start[1], start[2]);
   }
@@ -57,18 +59,17 @@ export class GrowArrow extends Animation {
       this._targetScale.z * scale,
     );
 
-    // Interpolate position from start to proper position
+    // Position interpolates from start back toward the arrow's initial position.
+    // The arrow's geometry (child VMobject points) is already in world space, so
+    // we must restore the original position rather than landing on the midpoint —
+    // otherwise the final rendered bounds would be double-shifted by the
+    // geometry offset.
     const start = this._startPoint;
-    const end = this._endPoint;
-    const midX = (start[0] + end[0]) / 2;
-    const midY = (start[1] + end[1]) / 2;
-    const midZ = (start[2] + end[2]) / 2;
-
-    // Position interpolates from start to center
+    const initial = this._initialPosition;
     arrow.position.set(
-      start[0] + (midX - start[0]) * alpha,
-      start[1] + (midY - start[1]) * alpha,
-      start[2] + (midZ - start[2]) * alpha,
+      start[0] + (initial.x - start[0]) * alpha,
+      start[1] + (initial.y - start[1]) * alpha,
+      start[2] + (initial.z - start[2]) * alpha,
     );
 
     arrow._markDirty();
@@ -78,10 +79,9 @@ export class GrowArrow extends Animation {
     const arrow = this.mobject as Arrow;
     arrow.scaleVector.copy(this._targetScale);
 
-    // Restore proper position
-    const start = this._startPoint;
-    const end = this._endPoint;
-    arrow.position.set((start[0] + end[0]) / 2, (start[1] + end[1]) / 2, (start[2] + end[2]) / 2);
+    // Restore the original position so that world-space child geometry is not
+    // double-shifted.
+    arrow.position.copy(this._initialPosition);
 
     arrow._markDirty();
     super.finish();

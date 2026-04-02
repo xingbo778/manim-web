@@ -86,8 +86,12 @@ describe('GrowArrow (extra)', () => {
       expect(arrow.scaleVector.z).toBeCloseTo(0.001, 5);
     });
 
-    it('position moves continuously from start to midpoint', () => {
+    it('position moves continuously from start back to initial position', () => {
+      // Arrow starts at world position [0,0,0] (default Group position).
+      // begin() moves position to the start point [0,0,0] (same here),
+      // and interpolate(1) restores it to the initial [0,0,0].
       const arrow = makeArrow([0, 0, 0], [6, 0, 0]);
+      const initialX = arrow.position.x; // [0,0,0]
       const anim = new GrowArrow(arrow);
       anim.begin();
 
@@ -95,33 +99,36 @@ describe('GrowArrow (extra)', () => {
       expect(arrow.position.x).toBeCloseTo(0, 2);
 
       anim.interpolate(0.25);
-      expect(arrow.position.x).toBeCloseTo(0.75, 2);
+      expect(arrow.position.x).toBeCloseTo(initialX * 0.25 + 0 * 0.75, 2); // 0
 
       anim.interpolate(0.5);
-      expect(arrow.position.x).toBeCloseTo(1.5, 2);
+      expect(arrow.position.x).toBeCloseTo(initialX * 0.5 + 0 * 0.5, 2); // 0
 
       anim.interpolate(0.75);
-      expect(arrow.position.x).toBeCloseTo(2.25, 2);
+      expect(arrow.position.x).toBeCloseTo(initialX * 0.75 + 0 * 0.25, 2); // 0
 
       anim.interpolate(1);
-      expect(arrow.position.x).toBeCloseTo(3, 2); // midpoint
+      expect(arrow.position.x).toBeCloseTo(initialX, 2); // restored to initial [0,0,0]
     });
 
     it('handles arrow with 3D coordinates', () => {
       const arrow = makeArrow([1, 2, 3], [5, 6, 7]);
+      // The arrow Group's initial position is [0,0,0] regardless of start/end.
+      const initialPos = arrow.position.clone();
       const anim = new GrowArrow(arrow);
       anim.begin();
 
-      // Position should start at the start point
+      // begin() moves position to the start point so the tiny arrow appears there
       expect(arrow.position.x).toBeCloseTo(1, 2);
       expect(arrow.position.y).toBeCloseTo(2, 2);
       expect(arrow.position.z).toBeCloseTo(3, 2);
 
       anim.interpolate(1);
-      // At alpha=1, position should be at midpoint
-      expect(arrow.position.x).toBeCloseTo(3, 2); // (1+5)/2
-      expect(arrow.position.y).toBeCloseTo(4, 2); // (2+6)/2
-      expect(arrow.position.z).toBeCloseTo(5, 2); // (3+7)/2
+      // At alpha=1, position is restored to the initial value [0,0,0].
+      // Restoring the original avoids a double-shift of the world-space geometry.
+      expect(arrow.position.x).toBeCloseTo(initialPos.x, 2);
+      expect(arrow.position.y).toBeCloseTo(initialPos.y, 2);
+      expect(arrow.position.z).toBeCloseTo(initialPos.z, 2);
     });
   });
 
@@ -146,6 +153,7 @@ describe('GrowArrow (extra)', () => {
     it('restores exact state regardless of last interpolation step', () => {
       const arrow = makeArrow([0, 0, 0], [4, 4, 0]);
       const origScale = arrow.scaleVector.clone();
+      const origPosition = arrow.position.clone(); // [0, 0, 0]
       const anim = new GrowArrow(arrow);
       anim.begin();
       anim.interpolate(0.1); // barely started
@@ -153,8 +161,9 @@ describe('GrowArrow (extra)', () => {
       expect(arrow.scaleVector.x).toBeCloseTo(origScale.x, 5);
       expect(arrow.scaleVector.y).toBeCloseTo(origScale.y, 5);
       expect(arrow.scaleVector.z).toBeCloseTo(origScale.z, 5);
-      expect(arrow.position.x).toBeCloseTo(2, 2); // midpoint x
-      expect(arrow.position.y).toBeCloseTo(2, 2); // midpoint y
+      // Position is restored to the initial value, not the midpoint.
+      expect(arrow.position.x).toBeCloseTo(origPosition.x, 2);
+      expect(arrow.position.y).toBeCloseTo(origPosition.y, 2);
     });
   });
 

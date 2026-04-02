@@ -108,27 +108,32 @@ describe('GrowArrow', () => {
       expect(arrow.scaleVector.x).toBeCloseTo(origScaleX, 5);
     });
 
-    it('position interpolates from start toward center', () => {
+    it('position interpolates from start toward initial position', () => {
       const arrow = new Arrow({ start: [0, 0, 0], end: [4, 0, 0] });
       const anim = new GrowArrow(arrow);
       anim.begin();
       anim.interpolate(1);
-      // At alpha=1 position should be at midpoint (0+4)/2 = 2
-      expect(arrow.position.x).toBeCloseTo(2, 2);
+      // At alpha=1 position should be restored to initial [0,0,0].
+      // The arrow's geometry is in world-space child VMobject points, so
+      // restoring the original position avoids a double-shift of the bounds.
+      expect(arrow.position.x).toBeCloseTo(0, 2);
     });
   });
 
   describe('finish()', () => {
-    it('restores original scale and sets position to midpoint', () => {
+    it('restores original scale and original position', () => {
       const arrow = new Arrow({ start: [0, 0, 0], end: [4, 0, 0] });
       const origScale = arrow.scaleVector.clone();
+      const origPosition = arrow.position.clone();
       const anim = new GrowArrow(arrow);
       anim.begin();
       anim.interpolate(0.3);
       anim.finish();
       expect(arrow.scaleVector.x).toBeCloseTo(origScale.x, 5);
       expect(arrow.scaleVector.y).toBeCloseTo(origScale.y, 5);
-      expect(arrow.position.x).toBeCloseTo(2, 2);
+      // Position must be restored to the initial value (not the midpoint) so
+      // that the world-space child geometry is not double-shifted.
+      expect(arrow.position.x).toBeCloseTo(origPosition.x, 2);
     });
   });
 

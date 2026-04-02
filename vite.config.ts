@@ -18,7 +18,13 @@ export default defineConfig({
       formats: ['es'],
     },
     rollupOptions: {
-      external: ['three', 'react', 'react/jsx-runtime', 'vue'],
+      // 'fs' is a Node.js built-in used by opentype.js for its font-file-writing
+      // code path (inside an isBrowser() guard).  Marking it external prevents
+      // "Module not found: Can't resolve 'fs'" errors when consumers bundle this
+      // library for the browser (e.g. Next.js / webpack).  Browser bundlers that
+      // respect the package.json `browser: {fs: false}` field will already stub
+      // it out; making it explicit here ensures Rollup doesn't try to resolve it.
+      external: ['three', 'react', 'react/jsx-runtime', 'vue', 'fs'],
       output: {
         globals: {
           three: 'THREE',
